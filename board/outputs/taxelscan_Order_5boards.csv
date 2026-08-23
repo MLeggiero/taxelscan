@@ -1,0 +1,11 @@
+Quantity,Manufacturer Part Number,Manufacturer,Customer Reference,Description,Package,Status
+5,XIAO RP2350,Seeed Studio,A1,XIAO_RP2350,XIAO_RP2350_Hybrid_Castellated_or_Header,buy direct from Seeed
+50,CL10B104KB8NNNC,Samsung,C1 C2 C3 C4 C5 C6 C7 C8,100nF,C_0603_1608Metric,substitutable: 100nF X7R 16V+ 0603
+15,CL10A106MQ8NNNC,Samsung,C9,10uF,C_0603_1608Metric,substitutable: 10uF X5R 6.3V+ 0603
+11,FH12-32S-0.5SH(55),Hirose,J1 J2,FFC_32P_0.5mm,Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal,confirmed - bottom contact
+15,RC0603FR-073K3L,Yageo,R1 R2,3.3k,R_0603_1608Metric,substitutable: 3.3k 1% 0603
+15,RC0603FR-0733RL,Yageo,R3 R4,33R,R_0603_1608Metric,substitutable: 33R 1% 0603
+10,RC0603JR-070RL,Yageo,R5,0R,R_0603_1608Metric,substitutable: 0R jumper 0603
+22,SN74LVC595APWR,Texas Instruments,U1 U2 U3 U4,74LVC595A,TSSOP-16_4.4x5mm_P0.65mm,CHECK-SUFFIX: must be PW/TSSOP-16
+12,CD74HC4067SM96,Texas Instruments,U5 U6,CD74HC4067SM,SSOP-24_5.3x8.2mm_P0.65mm,CHECK-SUFFIX: must be SM/SSOP-24
+7,TLV9062IDGKR,Texas Instruments,U7,TLV9062,MSOP-8_3x3mm_P0.65mm,confirmed

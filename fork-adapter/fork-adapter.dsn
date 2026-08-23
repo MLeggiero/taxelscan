@@ -1,0 +1,661 @@
+(pcb "C:\Users\mleggiero\Documents\KiCad\Flexitac 2.0\FlexiTac_Fork_Adapter\FlexiTac_Fork_Adapter.dsn"
+  (parser
+    (string_quote ")
+    (space_in_quoted_tokens on)
+    (host_cad "KiCad's Pcbnew")
+    (host_version "10.0.5")
+  )
+  (resolution um 10)
+  (unit um)
+  (structure
+    (layer F.Cu
+      (type signal)
+      (property
+        (index 0)
+      )
+    )
+    (layer B.Cu
+      (type signal)
+      (property
+        (index 1)
+      )
+    )
+    (boundary
+      (path pcb 0  132000 -140000  100000 -140000  100000 -100000  132000 -100000
+            132000 -140000)
+    )
+    (via "Via[0-1]_600:300_um")
+    (rule
+      (width 150)
+      (clearance 150)
+      (clearance 37.5 (type smd_smd))
+    )
+  )
+  (placement
+    (component Fiducial_1mm_Mask2mm
+      (place FID3T 127000 -103000 front 0 (PN Fiducial_1mm_Mask2mm))
+      (place FID2T 116000 -103000 front 0 (PN Fiducial_1mm_Mask2mm))
+      (place FID1T 105000 -103000 front 0 (PN Fiducial_1mm_Mask2mm))
+    )
+    (component "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal"
+      (place J4 126000 -117000 front 90 (PN "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal"))
+    )
+    (component "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal::1"
+      (place J1 116000 -134000 front 0 (PN "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal"))
+    )
+    (component "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal::2"
+      (place J3 106000 -117000 front -90 (PN "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal"))
+    )
+    (component Fiducial_1mm_Mask2mm::1
+      (place FID1B 105000 -103000 back 0 (PN Fiducial_1mm_Mask2mm))
+      (place FID3B 127000 -103000 back 0 (PN Fiducial_1mm_Mask2mm))
+      (place FID2B 116000 -103000 back 0 (PN Fiducial_1mm_Mask2mm))
+    )
+    (component "Hirose_FH12-12S-0.5SH_1x12-1MP_P0.50mm_Horizontal"
+      (place J5 106000 -117000 back 270 (PN "Hirose_FH12-12S-0.5SH_1x12-1MP_P0.50mm_Horizontal"))
+    )
+    (component "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal::3"
+      (place J2 116000 -129500 back 0 (PN "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal"))
+    )
+    (component "Hirose_FH12-12S-0.5SH_1x12-1MP_P0.50mm_Horizontal::1"
+      (place J6 126000 -117000 back 90 (PN "Hirose_FH12-12S-0.5SH_1x12-1MP_P0.50mm_Horizontal"))
+    )
+  )
+  (library
+    (image Fiducial_1mm_Mask2mm
+      (outline (polygon signal 0  277.598 1216.23  490.3 1147.12  687.248 1041.13  862.103 901.692
+            1009.25 733.266  1123.96 541.272  1202.55 331.886  1242.49 111.77
+            1245 0  1242.49 -111.769  1202.55 -331.885  1123.96 -541.271
+            1009.25 -733.265  862.103 -901.691  687.248 -1041.13  490.3 -1147.12
+            277.598 -1216.23  55.967 -1246.25  -167.455 -1236.21  -385.502 -1186.45
+            -591.157 -1098.55  -777.808 -975.339  -939.461 -820.782  -1070.92 -639.845
+            -1167.96 -438.342  -1227.46 -222.75  -1247.51 0  -1227.46 222.751
+            -1167.96 438.343  -1070.92 639.846  -939.461 820.783  -777.808 975.34
+            -591.157 1098.55  -385.502 1186.45  -167.455 1236.22  55.967 1246.25))
+      (outline (path signal 100  1000 0  980.785 -195.09  923.88 -382.683  831.47 -555.57
+            707.107 -707.107  555.57 -831.47  382.683 -923.88  195.09 -980.785
+            0 -1000  -195.09 -980.785  -382.683 -923.88  -555.57 -831.47
+            -707.107 -707.107  -831.47 -555.57  -923.88 -382.683  -980.785 -195.09
+            -1000 0  -980.785 195.09  -923.88 382.683  -831.47 555.57  -707.107 707.107
+            -555.57 831.47  -382.683 923.88  -195.09 980.785  0 1000  195.09 980.785
+            382.683 923.88  555.57 831.47  707.107 707.107  831.47 555.57
+            923.88 382.683  980.785 195.09  1000 0))
+      (pin Round[T]Pad_1000.000000_um @1 0 0)
+    )
+    (image "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal"
+      (outline (polygon signal 0  -11045 -4895  -11045 2995  11045 2995  11045 -4895))
+      (outline (path signal 120  9650 1300  9650 -40))
+      (outline (path signal 120  8160 1300  9650 1300))
+      (outline (path signal 120  -8160 1300  -8160 2500))
+      (outline (path signal 120  -8160 1300  -9650 1300))
+      (outline (path signal 120  -9650 1300  -9650 -40))
+      (outline (path signal 120  -9650 -2760  -9650 -4500))
+      (outline (path signal 120  9650 -4500  9650 -2760))
+      (outline (path signal 120  -9650 -4500  9650 -4500))
+      (outline (path signal 100  9550 1200  9550 -3400))
+      (outline (path signal 100  0 1200  9550 1200))
+      (outline (path signal 100  0 1200  -9550 1200))
+      (outline (path signal 100  -8250 1200  -7750 492.893))
+      (outline (path signal 100  -9550 1200  -9550 -3400))
+      (outline (path signal 100  -7750 492.893  -7250 1200))
+      (outline (path signal 100  9550 -3400  8950 -3400))
+      (outline (path signal 100  8950 -3400  8950 -3700))
+      (outline (path signal 100  -8950 -3400  -8950 -3700))
+      (outline (path signal 100  -9550 -3400  -8950 -3400))
+      (outline (path signal 100  9450 -3700  9450 -4400))
+      (outline (path signal 100  8950 -3700  9450 -3700))
+      (outline (path signal 100  -8950 -3700  -9450 -3700))
+      (outline (path signal 100  -9450 -3700  -9450 -4400))
+      (outline (path signal 100  9450 -4400  0 -4400))
+      (outline (path signal 100  -9450 -4400  0 -4400))
+      (pin Rect[T]Pad_300.000000x1300.000000_um 1 -7750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 2 -7250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 3 -6750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 4 -6250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 5 -5750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 6 -5250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 7 -4750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 8 -4250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 9 -3750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 10 -3250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 11 -2750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 12 -2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 13 -1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 14 -1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 15 -750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 16 -250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 17 250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 18 750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 19 1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 20 1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 21 2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 22 2750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 23 3250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 24 3750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 25 4250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 26 4750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 27 5250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 28 5750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 29 6250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 30 6750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 31 7250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 32 7750 1850)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP -9650 -1400)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP@1 9650 -1400)
+    )
+    (image "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal::1"
+      (outline (polygon signal 0  11045 -4895  -11045 -4895  -11045 2995  11045 2995))
+      (outline (path signal 120  -9650 1300  -9650 -40))
+      (outline (path signal 120  -9650 -2760  -9650 -4500))
+      (outline (path signal 120  -9650 -4500  9650 -4500))
+      (outline (path signal 120  -8160 1300  -9650 1300))
+      (outline (path signal 120  -8160 1300  -8160 2500))
+      (outline (path signal 120  8160 1300  9650 1300))
+      (outline (path signal 120  9650 1300  9650 -40))
+      (outline (path signal 120  9650 -4500  9650 -2760))
+      (outline (path signal 100  -9550 1200  -9550 -3400))
+      (outline (path signal 100  -9550 -3400  -8950 -3400))
+      (outline (path signal 100  -9450 -3700  -9450 -4400))
+      (outline (path signal 100  -9450 -4400  0 -4400))
+      (outline (path signal 100  -8950 -3400  -8950 -3700))
+      (outline (path signal 100  -8950 -3700  -9450 -3700))
+      (outline (path signal 100  -8250 1200  -7750 492.893))
+      (outline (path signal 100  -7750 492.893  -7250 1200))
+      (outline (path signal 100  0 1200  -9550 1200))
+      (outline (path signal 100  0 1200  9550 1200))
+      (outline (path signal 100  8950 -3400  8950 -3700))
+      (outline (path signal 100  8950 -3700  9450 -3700))
+      (outline (path signal 100  9450 -3700  9450 -4400))
+      (outline (path signal 100  9450 -4400  0 -4400))
+      (outline (path signal 100  9550 1200  9550 -3400))
+      (outline (path signal 100  9550 -3400  8950 -3400))
+      (pin Rect[T]Pad_300.000000x1300.000000_um 1 -7750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 2 -7250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 3 -6750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 4 -6250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 5 -5750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 6 -5250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 7 -4750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 8 -4250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 9 -3750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 10 -3250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 11 -2750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 12 -2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 13 -1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 14 -1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 15 -750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 16 -250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 17 250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 18 750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 19 1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 20 1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 21 2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 22 2750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 23 3250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 24 3750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 25 4250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 26 4750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 27 5250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 28 5750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 29 6250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 30 6750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 31 7250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 32 7750 1850)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP -9650 -1400)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP@1 9650 -1400)
+    )
+    (image "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal::2"
+      (outline (polygon signal 0  11045 2995  11045 -4895  -11045 -4895  -11045 2995))
+      (outline (path signal 120  -9650 -4500  9650 -4500))
+      (outline (path signal 120  9650 -4500  9650 -2760))
+      (outline (path signal 120  -9650 -2760  -9650 -4500))
+      (outline (path signal 120  -9650 1300  -9650 -40))
+      (outline (path signal 120  -8160 1300  -9650 1300))
+      (outline (path signal 120  -8160 1300  -8160 2500))
+      (outline (path signal 120  8160 1300  9650 1300))
+      (outline (path signal 120  9650 1300  9650 -40))
+      (outline (path signal 100  -9450 -4400  0 -4400))
+      (outline (path signal 100  9450 -4400  0 -4400))
+      (outline (path signal 100  -9450 -3700  -9450 -4400))
+      (outline (path signal 100  -8950 -3700  -9450 -3700))
+      (outline (path signal 100  8950 -3700  9450 -3700))
+      (outline (path signal 100  9450 -3700  9450 -4400))
+      (outline (path signal 100  -9550 -3400  -8950 -3400))
+      (outline (path signal 100  -8950 -3400  -8950 -3700))
+      (outline (path signal 100  8950 -3400  8950 -3700))
+      (outline (path signal 100  9550 -3400  8950 -3400))
+      (outline (path signal 100  -7750 492.893  -7250 1200))
+      (outline (path signal 100  -9550 1200  -9550 -3400))
+      (outline (path signal 100  -8250 1200  -7750 492.893))
+      (outline (path signal 100  0 1200  -9550 1200))
+      (outline (path signal 100  0 1200  9550 1200))
+      (outline (path signal 100  9550 1200  9550 -3400))
+      (pin Rect[T]Pad_300.000000x1300.000000_um 1 -7750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 2 -7250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 3 -6750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 4 -6250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 5 -5750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 6 -5250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 7 -4750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 8 -4250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 9 -3750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 10 -3250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 11 -2750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 12 -2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 13 -1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 14 -1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 15 -750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 16 -250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 17 250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 18 750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 19 1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 20 1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 21 2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 22 2750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 23 3250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 24 3750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 25 4250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 26 4750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 27 5250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 28 5750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 29 6250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 30 6750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 31 7250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 32 7750 1850)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP -9650 -1400)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP@1 9650 -1400)
+    )
+    (image Fiducial_1mm_Mask2mm::1
+      (outline (polygon signal 0  -277.598 -1216.23  -490.3 -1147.12  -687.248 -1041.13
+            -862.103 -901.691  -1009.25 -733.265  -1123.96 -541.271  -1202.55 -331.885
+            -1242.49 -111.769  -1245 0  -1242.49 111.77  -1202.55 331.886
+            -1123.96 541.272  -1009.25 733.266  -862.103 901.692  -687.248 1041.13
+            -490.3 1147.12  -277.598 1216.23  -55.967 1246.25  167.455 1236.22
+            385.502 1186.45  591.157 1098.55  777.808 975.34  939.461 820.783
+            1070.92 639.846  1167.96 438.343  1227.46 222.751  1247.51 0
+            1227.46 -222.75  1167.96 -438.342  1070.92 -639.845  939.461 -820.782
+            777.808 -975.339  591.157 -1098.55  385.502 -1186.45  167.455 -1236.21
+            -55.967 -1246.25))
+      (outline (path signal 100  -1000 0  -980.785 195.09  -923.88 382.683  -831.47 555.57
+            -707.107 707.107  -555.57 831.47  -382.683 923.88  -195.09 980.785
+            0 1000  195.09 980.785  382.683 923.88  555.57 831.47  707.107 707.107
+            831.47 555.57  923.88 382.683  980.785 195.09  1000 0  980.785 -195.09
+            923.88 -382.683  831.47 -555.57  707.107 -707.107  555.57 -831.47
+            382.683 -923.88  195.09 -980.785  0 -1000  -195.09 -980.785
+            -382.683 -923.88  -555.57 -831.47  -707.107 -707.107  -831.47 -555.57
+            -923.88 -382.683  -980.785 -195.09  -1000 0))
+      (pin Round[T]Pad_1000.000000_um @1 0 0)
+    )
+    (image "Hirose_FH12-12S-0.5SH_1x12-1MP_P0.50mm_Horizontal"
+      (outline (polygon signal 0  6055 2995  6055 -4895  -6055 -4895  -6055 2995))
+      (outline (path signal 120  4650 -4500  4650 -2760))
+      (outline (path signal 120  -4650 -4500  4650 -4500))
+      (outline (path signal 120  -4650 -2760  -4650 -4500))
+      (outline (path signal 120  4650 1300  4650 -40))
+      (outline (path signal 120  3160 1300  4650 1300))
+      (outline (path signal 120  -3160 1300  -4650 1300))
+      (outline (path signal 120  -3160 1300  -3160 2500))
+      (outline (path signal 120  -4650 1300  -4650 -40))
+      (outline (path signal 100  4450 -4400  0 -4400))
+      (outline (path signal 100  -4450 -4400  0 -4400))
+      (outline (path signal 100  4450 -3700  4450 -4400))
+      (outline (path signal 100  3950 -3700  4450 -3700))
+      (outline (path signal 100  -3950 -3700  -4450 -3700))
+      (outline (path signal 100  -4450 -3700  -4450 -4400))
+      (outline (path signal 100  4550 -3400  3950 -3400))
+      (outline (path signal 100  3950 -3400  3950 -3700))
+      (outline (path signal 100  -3950 -3400  -3950 -3700))
+      (outline (path signal 100  -4550 -3400  -3950 -3400))
+      (outline (path signal 100  -2750 492.893  -2250 1200))
+      (outline (path signal 100  4550 1200  4550 -3400))
+      (outline (path signal 100  0 1200  4550 1200))
+      (outline (path signal 100  0 1200  -4550 1200))
+      (outline (path signal 100  -3250 1200  -2750 492.893))
+      (outline (path signal 100  -4550 1200  -4550 -3400))
+      (pin Rect[T]Pad_300.000000x1300.000000_um 1 -2750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 2 -2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 3 -1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 4 -1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 5 -750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 6 -250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 7 250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 8 750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 9 1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 10 1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 11 2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 12 2750 1850)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP -4650 -1400)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP@1 4650 -1400)
+    )
+    (image "Hirose_FH12-32S-0.5SH_1x32-1MP_P0.50mm_Horizontal::3"
+      (outline (polygon signal 0  -11045 2995  11045 2995  11045 -4895  -11045 -4895))
+      (outline (path signal 120  9650 1300  9650 -40))
+      (outline (path signal 120  9650 -4500  9650 -2760))
+      (outline (path signal 120  8160 1300  9650 1300))
+      (outline (path signal 120  -8160 1300  -8160 2500))
+      (outline (path signal 120  -8160 1300  -9650 1300))
+      (outline (path signal 120  -9650 1300  -9650 -40))
+      (outline (path signal 120  -9650 -2760  -9650 -4500))
+      (outline (path signal 120  -9650 -4500  9650 -4500))
+      (outline (path signal 100  9550 1200  9550 -3400))
+      (outline (path signal 100  9550 -3400  8950 -3400))
+      (outline (path signal 100  9450 -3700  9450 -4400))
+      (outline (path signal 100  9450 -4400  0 -4400))
+      (outline (path signal 100  8950 -3400  8950 -3700))
+      (outline (path signal 100  8950 -3700  9450 -3700))
+      (outline (path signal 100  0 1200  9550 1200))
+      (outline (path signal 100  0 1200  -9550 1200))
+      (outline (path signal 100  -7750 492.893  -7250 1200))
+      (outline (path signal 100  -8250 1200  -7750 492.893))
+      (outline (path signal 100  -8950 -3400  -8950 -3700))
+      (outline (path signal 100  -8950 -3700  -9450 -3700))
+      (outline (path signal 100  -9450 -3700  -9450 -4400))
+      (outline (path signal 100  -9450 -4400  0 -4400))
+      (outline (path signal 100  -9550 1200  -9550 -3400))
+      (outline (path signal 100  -9550 -3400  -8950 -3400))
+      (pin Rect[T]Pad_300.000000x1300.000000_um 1 -7750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 2 -7250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 3 -6750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 4 -6250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 5 -5750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 6 -5250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 7 -4750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 8 -4250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 9 -3750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 10 -3250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 11 -2750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 12 -2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 13 -1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 14 -1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 15 -750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 16 -250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 17 250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 18 750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 19 1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 20 1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 21 2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 22 2750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 23 3250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 24 3750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 25 4250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 26 4750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 27 5250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 28 5750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 29 6250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 30 6750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 31 7250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 32 7750 1850)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP -9650 -1400)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP@1 9650 -1400)
+    )
+    (image "Hirose_FH12-12S-0.5SH_1x12-1MP_P0.50mm_Horizontal::1"
+      (outline (polygon signal 0  -6055 -4895  -6055 2995  6055 2995  6055 -4895))
+      (outline (path signal 120  -4650 1300  -4650 -40))
+      (outline (path signal 120  -3160 1300  -3160 2500))
+      (outline (path signal 120  -3160 1300  -4650 1300))
+      (outline (path signal 120  3160 1300  4650 1300))
+      (outline (path signal 120  4650 1300  4650 -40))
+      (outline (path signal 120  -4650 -2760  -4650 -4500))
+      (outline (path signal 120  -4650 -4500  4650 -4500))
+      (outline (path signal 120  4650 -4500  4650 -2760))
+      (outline (path signal 100  -4550 1200  -4550 -3400))
+      (outline (path signal 100  -3250 1200  -2750 492.893))
+      (outline (path signal 100  0 1200  -4550 1200))
+      (outline (path signal 100  0 1200  4550 1200))
+      (outline (path signal 100  4550 1200  4550 -3400))
+      (outline (path signal 100  -2750 492.893  -2250 1200))
+      (outline (path signal 100  -4550 -3400  -3950 -3400))
+      (outline (path signal 100  -3950 -3400  -3950 -3700))
+      (outline (path signal 100  3950 -3400  3950 -3700))
+      (outline (path signal 100  4550 -3400  3950 -3400))
+      (outline (path signal 100  -4450 -3700  -4450 -4400))
+      (outline (path signal 100  -3950 -3700  -4450 -3700))
+      (outline (path signal 100  3950 -3700  4450 -3700))
+      (outline (path signal 100  4450 -3700  4450 -4400))
+      (outline (path signal 100  -4450 -4400  0 -4400))
+      (outline (path signal 100  4450 -4400  0 -4400))
+      (pin Rect[T]Pad_300.000000x1300.000000_um 1 -2750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 2 -2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 3 -1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 4 -1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 5 -750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 6 -250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 7 250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 8 750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 9 1250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 10 1750 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 11 2250 1850)
+      (pin Rect[T]Pad_300.000000x1300.000000_um 12 2750 1850)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP -4650 -1400)
+      (pin Rect[T]Pad_1800.000000x2200.000000_um MP@1 4650 -1400)
+    )
+    (padstack Round[T]Pad_1000.000000_um
+      (shape (circle F.Cu 1000))
+      (attach off)
+    )
+    (padstack Rect[T]Pad_300.000000x1300.000000_um
+      (shape (rect F.Cu -150 -650 150 650))
+      (attach off)
+    )
+    (padstack Rect[T]Pad_1800.000000x2200.000000_um
+      (shape (rect F.Cu -900 -1100 900 1100))
+      (attach off)
+    )
+    (padstack "Via[0-1]_600:300_um"
+      (shape (circle F.Cu 600))
+      (shape (circle B.Cu 600))
+      (attach off)
+    )
+  )
+  (network
+    (net ROW_0
+      (pins J4-1 J1-1 J3-1)
+    )
+    (net ROW_1
+      (pins J4-2 J1-2 J3-2)
+    )
+    (net ROW_2
+      (pins J4-3 J1-3 J3-3)
+    )
+    (net ROW_3
+      (pins J4-4 J1-4 J3-4)
+    )
+    (net ROW_4
+      (pins J4-5 J1-5 J3-5)
+    )
+    (net ROW_5
+      (pins J4-6 J1-6 J3-6)
+    )
+    (net ROW_6
+      (pins J4-7 J1-7 J3-7)
+    )
+    (net ROW_7
+      (pins J4-8 J1-8 J3-8)
+    )
+    (net ROW_8
+      (pins J4-9 J1-9 J3-9)
+    )
+    (net ROW_9
+      (pins J4-10 J1-10 J3-10)
+    )
+    (net ROW_10
+      (pins J4-11 J1-11 J3-11)
+    )
+    (net ROW_11
+      (pins J4-12 J1-12 J3-12)
+    )
+    (net ROW_12
+      (pins J4-13 J1-13 J3-13)
+    )
+    (net ROW_13
+      (pins J4-14 J1-14 J3-14)
+    )
+    (net ROW_14
+      (pins J4-15 J1-15 J3-15)
+    )
+    (net ROW_15
+      (pins J4-16 J1-16 J3-16)
+    )
+    (net ROW_16
+      (pins J4-17 J1-17 J3-17)
+    )
+    (net ROW_17
+      (pins J4-18 J1-18 J3-18)
+    )
+    (net ROW_18
+      (pins J4-19 J1-19 J3-19)
+    )
+    (net ROW_19
+      (pins J4-20 J1-20 J3-20)
+    )
+    (net ROW_20
+      (pins J4-21 J1-21 J3-21)
+    )
+    (net ROW_21
+      (pins J4-22 J1-22 J3-22)
+    )
+    (net ROW_22
+      (pins J4-23 J1-23 J3-23)
+    )
+    (net ROW_23
+      (pins J4-24 J1-24 J3-24)
+    )
+    (net ROW_24
+      (pins J4-25 J1-25 J3-25)
+    )
+    (net ROW_25
+      (pins J4-26 J1-26 J3-26)
+    )
+    (net ROW_26
+      (pins J4-27 J1-27 J3-27)
+    )
+    (net ROW_27
+      (pins J4-28 J1-28 J3-28)
+    )
+    (net ROW_28
+      (pins J4-29 J1-29 J3-29)
+    )
+    (net ROW_29
+      (pins J4-30 J1-30 J3-30)
+    )
+    (net ROW_30
+      (pins J4-31 J1-31 J3-31)
+    )
+    (net ROW_31
+      (pins J4-32 J1-32 J3-32)
+    )
+    (net COL_0
+      (pins J5-1 J2-1)
+    )
+    (net COL_1
+      (pins J5-2 J2-2)
+    )
+    (net COL_2
+      (pins J5-3 J2-3)
+    )
+    (net COL_3
+      (pins J5-4 J2-4)
+    )
+    (net COL_4
+      (pins J5-5 J2-5)
+    )
+    (net COL_5
+      (pins J5-6 J2-6)
+    )
+    (net COL_6
+      (pins J5-7 J2-7)
+    )
+    (net COL_7
+      (pins J5-8 J2-8)
+    )
+    (net COL_8
+      (pins J5-9 J2-9)
+    )
+    (net COL_9
+      (pins J5-10 J2-10)
+    )
+    (net COL_10
+      (pins J5-11 J2-11)
+    )
+    (net COL_11
+      (pins J5-12 J2-12)
+    )
+    (net COL_12
+      (pins J2-13)
+    )
+    (net COL_13
+      (pins J2-14)
+    )
+    (net COL_14
+      (pins J2-15)
+    )
+    (net COL_15
+      (pins J2-16)
+    )
+    (net COL_16
+      (pins J2-17 J6-1)
+    )
+    (net COL_17
+      (pins J2-18 J6-2)
+    )
+    (net COL_18
+      (pins J2-19 J6-3)
+    )
+    (net COL_19
+      (pins J2-20 J6-4)
+    )
+    (net COL_20
+      (pins J2-21 J6-5)
+    )
+    (net COL_21
+      (pins J2-22 J6-6)
+    )
+    (net COL_22
+      (pins J2-23 J6-7)
+    )
+    (net COL_23
+      (pins J2-24 J6-8)
+    )
+    (net COL_24
+      (pins J2-25 J6-9)
+    )
+    (net COL_25
+      (pins J2-26 J6-10)
+    )
+    (net COL_26
+      (pins J2-27 J6-11)
+    )
+    (net COL_27
+      (pins J2-28 J6-12)
+    )
+    (net COL_28
+      (pins J2-29)
+    )
+    (net COL_29
+      (pins J2-30)
+    )
+    (net COL_30
+      (pins J2-31)
+    )
+    (net COL_31
+      (pins J2-32)
+    )
+    (class kicad_default COL_0 COL_1 COL_10 COL_11 COL_12 COL_13 COL_14 COL_15
+      COL_16 COL_17 COL_18 COL_19 COL_2 COL_20 COL_21 COL_22 COL_23 COL_24
+      COL_25 COL_26 COL_27 COL_28 COL_29 COL_3 COL_30 COL_31 COL_4 COL_5 COL_6
+      COL_7 COL_8 COL_9 ROW_0 ROW_1 ROW_10 ROW_11 ROW_12 ROW_13 ROW_14 ROW_15
+      ROW_16 ROW_17 ROW_18 ROW_19 ROW_2 ROW_20 ROW_21 ROW_22 ROW_23 ROW_24
+      ROW_25 ROW_26 ROW_27 ROW_28 ROW_29 ROW_3 ROW_30 ROW_31 ROW_4 ROW_5 ROW_6
+      ROW_7 ROW_8 ROW_9
+      (circuit
+        (use_via "Via[0-1]_600:300_um")
+      )
+      (rule
+        (width 150)
+        (clearance 150)
+      )
+    )
+  )
+  (wiring
+  )
+)

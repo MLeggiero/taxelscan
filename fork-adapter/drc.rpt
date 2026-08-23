@@ -1,0 +1,46 @@
+** Drc report for FlexiTac_Fork_Adapter.kicad_pcb **
+** Created on 2026-08-06T20:32:18 **
+** Report includes: Errors **
+
+** Found 3 DRC violations **
+[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.3000 mm; actual 0.1633 mm)
+    Rule: board setup constraints edge; error
+    @(100.0000 mm, 140.0000 mm): Segment on Edge.Cuts
+    @(106.4258 mm, 109.2500 mm): Track [ROW_0] on F.Cu, length 8.7504 mm
+[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.3000 mm; actual 0.1633 mm)
+    Rule: board setup constraints edge; error
+    @(100.0000 mm, 140.0000 mm): Segment on Edge.Cuts
+    @(100.2383 mm, 115.4375 mm): Track [ROW_0] on F.Cu, length 13.5362 mm
+[copper_edge_clearance]: Board edge clearance violation (board setup constraints edge clearance 0.3000 mm; actual 0.1633 mm)
+    Rule: board setup constraints edge; error
+    @(100.0000 mm, 140.0000 mm): Segment on Edge.Cuts
+    @(100.2383 mm, 128.9737 mm): Track [ROW_0] on F.Cu, length 4.0653 mm
+
+** Found 4 unconnected pads **
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(122.5282 mm, 122.2826 mm): Track [ROW_6] on B.Cu, length 5.3470 mm
+    @(111.2500 mm, 132.1500 mm): Pad 7 [ROW_6] of J1 on F.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(124.1500 mm, 121.2500 mm): Pad 8 [ROW_7] of J4 on F.Cu
+    @(111.7500 mm, 132.1500 mm): Track [ROW_7] on F.Cu, length 0.8767 mm
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(107.8500 mm, 115.2500 mm): Pad 10 [COL_9] of J5 on B.Cu
+    @(119.2500 mm, 127.6500 mm): Pad 10 [COL_9] of J2 on B.Cu
+[unconnected_items]: Missing connection between items
+    Local override; error
+    @(113.7500 mm, 127.6500 mm): Pad 21 [COL_20] of J2 on B.Cu
+    @(124.1500 mm, 116.2500 mm): Pad 5 [COL_20] of J6 on B.Cu
+
+** Found 0 Footprint errors **
+
+** Ignored checks **
+    - Footprint has no courtyard defined
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - Footprint component type doesn't match footprint pads
+
+** End of Report **

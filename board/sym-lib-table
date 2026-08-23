@@ -1,0 +1,6 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "FlexiTac")(type "KiCad")(uri "${KIPRJMOD}/FlexiTac.kicad_sym")(options "")(descr "Project-local symbols"))
+  (lib (name "Samacsys")(type "KiCad")(uri "${KIPRJMOD}/Samacsys.kicad_sym")(options "")(descr "Samacsys imports"))
+  (lib (name "Snapeda")(type "KiCad")(uri "${KIPRJMOD}/Snapeda.kicad_sym")(options "")(descr "SnapEDA imports"))
+)

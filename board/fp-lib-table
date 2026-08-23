@@ -1,0 +1,6 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "FlexiTac")(type "KiCad")(uri "${KIPRJMOD}/FlexiTac.pretty")(options "")(descr "Project-local footprints"))
+  (lib (name "Samacsys")(type "KiCad")(uri "${KIPRJMOD}/Samacsys.pretty")(options "")(descr "Samacsys imports"))
+  (lib (name "Snapeda")(type "KiCad")(uri "${KIPRJMOD}/Snapeda.pretty")(options "")(descr "SnapEDA imports"))
+)

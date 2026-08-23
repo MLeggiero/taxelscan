@@ -1,0 +1,55 @@
+# Arduino / arduino-cli build output
+firmware/build/
+firmware/build_*/
+*.uf2
+*.elf
+*.map
+*.hex
+
+# Native simulator build output
+firmware/sim/obj/
+firmware/sim/sim.exe
+firmware/sim/*.pdb
+firmware/sim/*.ilk
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Captured data and logs (regenerate these, do not commit them)
+*.csv.log
+soak*.csv
+dump*.txt
+*_dump.txt
+
+# KiCad transient files
+*.kicad_prl
+*-backups/
+~*.lck
+fp-info-cache
+*.kicad_pcb-bak
+*.kicad_sch-bak
+*.net.bak
+
+# KiCad working files from routing and DRC sessions.
+# These are intermediate states, not the released design.
+# Unanchored on purpose. A pattern containing a slash is matched relative to
+# this file, and these live under the KiCad project subdirectory.
+_probe.*
+*.unrouted-backup
+backup-20*/
+routed_trial.*
+drc_check.rpt
+drc_routed.rpt
+
+# VS Code Local History extension.
+# These directories contain nested .git repos and will confuse a fresh clone.
+.history/
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
