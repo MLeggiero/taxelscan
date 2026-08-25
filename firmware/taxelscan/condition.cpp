@@ -25,8 +25,13 @@ static int16_t  tare0  [MAX_TAXELS];     // boot tare - the drift cap hangs off 
 static int16_t  hist   [3][MAX_TAXELS];  // temporal median ring
 static uint8_t  histPos = 0;
 static bool     histFull = false;
+#if TAXEL_EURO_FIXED
+static int32_t  xhatQ8 [MAX_TAXELS];     // one-euro state, Q8 counts
+static int32_t  dhatQ8 [MAX_TAXELS];     // EMA of frame-to-frame delta, Q8 counts
+#else
 static float    xhat   [MAX_TAXELS];     // one-euro state
 static float    dxhat  [MAX_TAXELS];
+#endif
 static int16_t  prevIn [MAX_TAXELS];     // raw derivative reference
 static int16_t  prevFilt[MAX_TAXELS];
 static uint16_t varEma [MAX_TAXELS];     // EMA of |frame-to-frame|, Q4
@@ -105,6 +110,60 @@ static inline float alphaFor(float cutoff, float dt) {
   return x / (x + INV_TWO_PI);
 }
 
+#if TAXEL_EURO_FIXED
+/*
+ * The same filter in integers, because at 8192 taxels the float form does not
+ * fit the frame budget. VDIV.F32 is ~14 cycles and does not pipeline, and it is
+ * paid once per taxel on top of the int<->float conversions around it.
+ *
+ * Two changes remove it, and the first is the one that matters.
+ *
+ * TRACK THE DERIVATIVE IN COUNTS, NOT COUNTS PER SECOND. The cutoff reaches the
+ * filter only through x = cutoff*dt, so with dxhat = EMA(ddelta)/dt:
+ *
+ *     x = (fcMin + beta*|dxhat|) * dt
+ *       = fcMin*dt + beta*dt*|EMA(ddelta)|/dt
+ *       = fcMin*dt + beta*|EMA(ddelta)|
+ *
+ * dt cancels out of the derivative term entirely. That drops the invDt multiply
+ * per taxel, and it keeps the state in counts (+-8190) rather than counts per
+ * second (+-4e6), which is what lets it sit in Q8 without crowding int32.
+ *
+ * The two forms are algebraically identical while dt is constant, which is what
+ * the fixed frame cadence exists to guarantee. They differ only across a dt
+ * change - a counted overrun - where the float form's stored counts/s stays
+ * meaningful and this one's stored counts lag by one frame. Given that a dt
+ * excursion is already an exceptional event that condProcess() clamps hard, a
+ * one-frame lag in the cutoff is the cheaper of the two costs.
+ *
+ * DIVIDE IN INTEGERS. alpha = x/(x + 1/2pi) becomes one 32-bit UDIV (2-12
+ * cycles, early-terminating), computed in the complement form
+ *
+ *     alpha = 1 - k/(x + k)
+ *
+ * rather than directly. That is worth a word, because the direct form does not
+ * work in 32 bits: x/(x+k) needs the numerator pre-shifted by 16, which
+ * overflows once x exceeds 2^16, so it forces either a 64-bit divide (a helper
+ * call, ~40 cycles - the whole point was to avoid that) or a scale-and-clamp
+ * that puts a visible step in alpha where the clamp bites. In the complement
+ * form the numerator is the CONSTANT k<<16 = 683540480, which cannot overflow
+ * whatever x does, so one 32-bit divide covers the entire input range exactly
+ * and there is no clamp to place.
+ */
+static const uint32_t ONE_Q16 = 65536u;
+static const uint32_t K_Q16   = 10430u;          // 1/(2*pi) in Q16
+static const uint32_t K_NUM   = K_Q16 << 16;     // fits 32 bits: 6.8e8 < 4.3e9
+static const uint32_t X_CAP_Q16 = 1u << 28;      // x = 4096; alpha = 0.99996
+
+static inline uint32_t alphaQ16(uint32_t xQ16) {
+  // Matches alphaFor()'s guard: a non-positive cutoff means "do not smooth".
+  if (xQ16 == 0) return ONE_Q16;
+  return ONE_Q16 - (K_NUM / (xQ16 + K_Q16));
+}
+
+uint32_t condAlphaQ16Test(uint32_t xQ16) { return alphaQ16(xQ16); }
+#endif
+
 void condSigmaDefault(uint16_t q4) {
   for (int i = 0; i < MAX_TAXELS; i++) sigmaQ4[i] = q4;
 }
@@ -119,8 +178,13 @@ void condReset(void) {
   memset(baseQ8, 0, sizeof(baseQ8));
   memset(tare0,  0, sizeof(tare0));
   memset(hist,   0, sizeof(hist));
+#if TAXEL_EURO_FIXED
+  memset(xhatQ8, 0, sizeof(xhatQ8));
+  memset(dhatQ8, 0, sizeof(dhatQ8));
+#else
   memset(xhat,   0, sizeof(xhat));
   memset(dxhat,  0, sizeof(dxhat));
+#endif
   memset(prevIn, 0, sizeof(prevIn));
   memset(prevFilt, 0, sizeof(prevFilt));
   memset(varEma, 0, sizeof(varEma));
@@ -146,7 +210,11 @@ void condSeedBaseline(const int16_t *dr) {
       stuckN[i] = 0;
       flags[i]  = 0;
       onCnt[i] = offCnt[i] = 0;
+#if TAXEL_EURO_FIXED
+      xhatQ8[i] = 0; dhatQ8[i] = 0;
+#else
       xhat[i] = 0.0f; dxhat[i] = 0.0f;
+#endif
       prevIn[i] = dr[i]; prevFilt[i] = 0;
       varEma[i] = 0;
     }
@@ -210,7 +278,16 @@ void condProcess(const int16_t *dr, float dt) {
   const int32_t relStep  = (int32_t)(cc.releaseRate * dt * 256.0f) + 1;
   const uint32_t stuckLimit = (uint32_t)(cc.stuckSecs / (dt > 0 ? dt : 0.025f));
   const float ad = alphaFor(cc.dCutoff, dt);
+#if TAXEL_EURO_FIXED
+  // Hoisted once per frame, so the float arithmetic here costs nothing per
+  // taxel. ad comes from alphaFor() unchanged, which keeps the derivative
+  // EMA's rate bit-comparable with the float build.
+  const uint32_t adQ16       = (uint32_t)(ad * 65536.0f);
+  const uint32_t betaQ16     = (uint32_t)(cc.beta * 65536.0f);
+  const uint32_t fcMinDtQ16  = (uint32_t)(cc.fcMin * dt * 65536.0f);
+#else
   const float invDt = 1.0f / dt;      // hoisted: was a divide per taxel
+#endif
 
   ctel.adapted = ctel.frozen = ctel.released = ctel.capped = 0;
   ctel.suppressed = 0; ctel.activeCells = 0; ctel.peak = 0;
@@ -281,22 +358,42 @@ void condProcess(const int16_t *dr, float dt) {
       int32_t delta = (int32_t)med - (bq >> 8);
 
       // ---- stage 6: one-euro ------------------------------------------
-      float out;
+      int32_t fv;
       if (cc.euro) {
+#if TAXEL_EURO_FIXED
+        // Derivative EMA, in counts rather than counts/s - see alphaQ16().
+        int32_t dd = (delta - (int32_t)prevIn[i]) << 8;
+        dhatQ8[i] += (int32_t)(((int64_t)adQ16 * (dd - dhatQ8[i])) >> 16);
+
+        // x = fcMin*dt + beta*|dhat|. The 64-bit product is one UMULL; only a
+        // 64-bit DIVIDE would have cost anything, and there is not one here.
+        uint32_t absD = (uint32_t)(dhatQ8[i] < 0 ? -dhatQ8[i] : dhatQ8[i]);
+        uint64_t xw = (uint64_t)fcMinDtQ16 + ((((uint64_t)betaQ16 * absD)) >> 8);
+        // The ceiling only exists to keep xQ16 inside uint32 for any beta the
+        // option table allows. alpha(4096) = 0.99996, so nothing is lost.
+        uint32_t xQ16 = (xw > X_CAP_Q16) ? X_CAP_Q16 : (uint32_t)xw;
+
+        int32_t dq = (delta << 8) - xhatQ8[i];
+        xhatQ8[i] += (int32_t)(((int64_t)alphaQ16(xQ16) * dq) >> 16);
+
+        // Round half away from zero, matching the float path's +-0.5f.
+        int32_t q = xhatQ8[i];
+        fv = (q >= 0) ? ((q + 128) >> 8) : -(((-q) + 128) >> 8);
+#else
         float x  = (float)delta;
         float dx = ((float)delta - (float)prevIn[i]) * invDt;
         dxhat[i] += ad * (dx - dxhat[i]);
         float cutoff = cc.fcMin + cc.beta * fabsf(dxhat[i]);
         float a = alphaFor(cutoff, dt);
         xhat[i] += a * (x - xhat[i]);
-        out = xhat[i];
+        // Not lrintf(): that is an out-of-line veneer call, once per taxel.
+        fv = (int32_t)(xhat[i] >= 0.0f ? xhat[i] + 0.5f : xhat[i] - 0.5f);
+#endif
       } else {
-        out = (float)delta;
+        fv = delta;
       }
       prevIn[i] = (int16_t)delta;
 
-      // Not lrintf(): that is an out-of-line veneer call, once per taxel.
-      int32_t fv = (int32_t)(out >= 0.0f ? out + 0.5f : out - 0.5f);
       if (fv >  32767) fv =  32767;
       if (fv < -32768) fv = -32768;
       filtMap[i] = (int16_t)fv;

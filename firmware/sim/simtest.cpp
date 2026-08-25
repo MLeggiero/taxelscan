@@ -457,7 +457,81 @@ static void bench() {
   printf("     x86 timings. Ratios transfer to the RP2350; absolutes do not.\n");
 }
 
+/*
+ * Fixed-point one-euro equivalence.
+ *
+ * Two separate questions, because they can fail independently.
+ *
+ * The ARITHMETIC: does alphaQ16() agree with the float formula it replaces?
+ * Swept directly against the shipped function through the test seam in
+ * condition.h, so this cannot pass by testing a copy that has drifted.
+ *
+ * The PIPELINE: does the whole conditioner behave the same? A per-frame digest
+ * of filtMap over a deterministic scene is printed as CSV. The float and fixed
+ * builds each emit one, and `make compare` diffs them numerically. Comparing
+ * digests rather than pass/fail verdicts matters: a filter change can shift
+ * every value slightly while every check still passes, and that is exactly the
+ * kind of drift worth seeing.
+ */
+static void euroCheck() {
+#if TAXEL_EURO_FIXED
+  // Relative error is only meaningful once alpha is big enough to affect the
+  // output. Below alpha ~ 1e-3 the error is pure Q16 quantisation - alpha 1e-4
+  // against 1.07e-4 is 7% "relative" and means nothing, since either value
+  // leaves the filter effectively frozen.
+  double worstAbs = 0.0, worstRel = 0.0;
+  uint32_t worstAt = 0, worstRelAt = 0;
+  for (uint32_t xQ16 = 1; xQ16 < (1u << 24); xQ16 += 7) {
+    double x   = xQ16 / 65536.0;
+    double ref = x / (x + 0.15915494309189535);
+    double got = condAlphaQ16Test(xQ16) / 65536.0;
+    double a   = fabs(got - ref);
+    if (a > worstAbs) { worstAbs = a; worstAt = xQ16; }
+    if (ref > 1e-3 && a / ref > worstRel) { worstRel = a / ref; worstRelAt = xQ16; }
+  }
+  fprintf(stderr, "# alphaQ16 vs float, x over [0, 256]:\n"
+                  "#   max abs error %.2e at x = %.4f\n"
+                  "#   max rel error %.4f%% at x = %.4f (over alpha > 1e-3)\n",
+          worstAbs, worstAt / 65536.0, worstRel * 100.0, worstRelAt / 65536.0);
+  // One Q16 step is 1.5e-5; anything near that is representation, not method.
+  if (worstAbs > 5e-5) { fprintf(stderr, "# ALPHA ERROR TOO LARGE\n"); failures++; }
+  if (worstRel > 0.01) { fprintf(stderr, "# ALPHA REL ERROR TOO LARGE\n"); failures++; }
+#endif
+
+  // Deterministic scene: settle, press, hold, release, relax. Same RNG seed in
+  // both builds, so any divergence in the CSV is the filter and nothing else.
+  rng = 0x13579BDFu;
+  cfg.rows = 16; cfg.chans = 16; cfg.banks = 2;
+  sceneInit();
+  condReset(); clearLoad(); simTare();
+
+  printf("frame,sum,max,min,active,contacts\n");
+  for (int f = 0; f < 600; f++) {
+    if (f == 100) addBlob(8.0f, 16.0f, 2.0f, 700.0f);
+    float scale = 1.0f;
+    if (f >= 400) scale = expf(-(f - 400) / (20.0f * FPS));
+    makeFrame(scale);
+    condProcess(dr, DT);
+
+    long sum = 0; int mx = INT32_MIN, mn = INT32_MAX;
+    for (int r = 0; r < cfg.rows; r++)
+      for (int c = 0; c < nCols(); c++) {
+        int v = filtMap[r * MAX_COLS + c];
+        sum += v;
+        if (v > mx) mx = v;
+        if (v < mn) mn = v;
+      }
+    printf("%d,%ld,%d,%d,%u,%u\n", f, sum, mx, mn, ctel.activeCells, nContacts);
+  }
+}
+
 int main(int argc, char **argv) {
+  if (argc > 1 && !strcmp(argv[1], "euro")) {
+    condInit();
+    sceneInit();
+    euroCheck();
+    return failures ? 1 : 0;
+  }
   if (argc > 1 && !strcmp(argv[1], "bench")) {
     condInit();
     cfg.rows = 16; cfg.chans = 16; cfg.banks = 2;

@@ -59,6 +59,35 @@
 #include <Arduino.h>
 #include "scan.h"
 
+/*
+ * One-euro arithmetic: fixed point (1) or float (0). FLOAT IS THE DEFAULT, and
+ * that is a measured result rather than an assumption - it went the other way
+ * from what the v2 plan expected.
+ *
+ * Removing the per-taxel VDIV.F32 looked like the obvious win for the
+ * multi-sensor build. It is not, on any core with a hardware FPU. Counting the
+ * instructions the stage actually compiles to (tools/armcycles.sh, which
+ * cross-compiles this file and attributes each instruction to its source line):
+ *
+ *     core          float           fixed          verdict
+ *     Cortex-M33    ~66 cycles      ~130 cycles    fixed is 2x WORSE
+ *     Cortex-M7     ~80 cycles      ~92 cycles     fixed is ~15% worse
+ *
+ * VDIV.F32 costs 14 cycles and does not pipeline, but the integer replacement
+ * needs three 64-bit multiply-shift chains to hold the intermediate ranges, and
+ * those cost more than the divide they save. The FPU is simply the right tool
+ * on these parts.
+ *
+ * The fixed path is kept, and kept proven equivalent, for two reasons: it is
+ * the evidence for this decision, and it is ready if the target ever loses its
+ * FPU. `make compare` in sim/ runs both builds against each other - they agree
+ * to within one count of output rounding, with identical gating decisions on
+ * every frame.
+ */
+#ifndef TAXEL_EURO_FIXED
+#define TAXEL_EURO_FIXED 0
+#endif
+
 static const int MAX_CONTACTS = 32;
 
 struct __attribute__((packed)) Contact {
@@ -134,6 +163,12 @@ extern Contact  contacts[MAX_CONTACTS];
 extern uint8_t  nContacts;               // entries in contacts[], accepted first
 extern uint8_t  nRejected;               // how many of those failed the gate
 extern uint16_t sigmaQ4[MAX_TAXELS];     // per-taxel noise, counts in Q4
+
+#if TAXEL_EURO_FIXED
+// Test seam: lets the simulator sweep the shipped alphaQ16() against the float
+// formula directly, rather than against a copy of it that could drift.
+uint32_t condAlphaQ16Test(uint32_t xQ16);
+#endif
 
 void condInit(void);
 void condReset(void);                            // clear filter and baseline state
