@@ -473,6 +473,136 @@ static void bench() {
  * every value slightly while every check still passes, and that is exactly the
  * kind of drift worth seeing.
  */
+
+/*
+ * The digest scene, and why it looks like this.
+ *
+ * The first version of it pressed one blob in the middle of the mat and
+ * watched it decay. It was useless as a regression test: deliberately breaking
+ * the despeckle neighbour test (c < nc-1 changed to c < nc-2, exactly the
+ * off-by-one a bitmap rewrite would produce) changed nothing in the digest,
+ * and every A-G check still passed. A test that cannot fail is worse than no
+ * test, because it is trusted.
+ *
+ * A blob in the middle of a mat exercises almost nothing. So this scene is
+ * built to touch each thing that a change to the pipeline's indexing or
+ * neighbour logic is likely to break:
+ *
+ *   - all four ARRAY EDGES, where a shift or a bounds check goes wrong first
+ *   - ISOLATED TAXELS, which is the only input despeckle acts on at all
+ *   - TWO BLOBS THAT MERGE, which is the only input that exercises union-find
+ *   - a SUSTAINED contact, for the freeze/halo and stuck-release paths
+ *   - both nc == 32 and nc < 32, so the column mask is not assumed away
+ *
+ * The digest carries the stage TELEMETRY, not just the map. `suppressed`
+ * counts despeckle, `frozen` counts the halo, `adapted`/`released`/`capped`
+ * count the baseline - so a fault in one of those stages shows up as a changed
+ * counter even in a frame where the map happens to come out the same. And the
+ * checksum weights each taxel by its index, so a value moving from one taxel
+ * to another is visible where a plain sum would hide it.
+ */
+static void dot(int r, int c, float amp) { load[r * MAX_COLS + c] += amp; }
+
+static void digestScene(int rows, int chans, int banks, const char *name) {
+  rng = 0x13579BDFu;
+  cfg.rows = (uint8_t)rows; cfg.chans = (uint8_t)chans; cfg.banks = (uint8_t)banks;
+  sceneInit();
+  condReset(); clearLoad(); simTare();
+
+  const int nr = cfg.rows, nc = nCols();
+  // A regression scene is only worth what it touches, so count it rather than
+  // trusting the blob coordinates to land where they were meant to.
+  int hitR0 = 0, hitR1 = 0, hitC0 = 0, hitC1 = 0, hitSup = 0, hitMerge = 0;
+  for (int f = 0; f < 600; f++) {
+    switch (f) {
+      case 100: addBlob(nr / 2.0f, nc / 2.0f, 2.0f, 700.0f); break;
+
+      case 150:                     // every corner: edges reach the contact list
+        addBlob(0.0f, 0.0f, 1.4f, 600.0f);
+        addBlob(0.0f, (float)(nc - 1), 1.4f, 600.0f);
+        addBlob((float)(nr - 1), 0.0f, 1.4f, 600.0f);
+        addBlob((float)(nr - 1), (float)(nc - 1), 1.4f, 600.0f);
+        break;
+
+      /*
+       * The despeckle probes, on a cleared mat so nothing else is adjacent.
+       *
+       * Touching an edge is not the same as DISCRIMINATING at one. A solid
+       * blob that reaches column nc-1 has active neighbours whichever way the
+       * bounds test goes, so breaking `c < nc - 1` changes nothing about it -
+       * an earlier version of this scene proved exactly that by failing to
+       * notice the fault.
+       *
+       * What distinguishes the guard is an ISOLATED PAIR straddling the last
+       * two columns: correct code sees each half's neighbour and keeps both,
+       * a broken guard cannot see across the boundary and suppresses one.
+       * Singles sitting exactly ON each edge are the other half of the test -
+       * they must be suppressed, and a shift that wraps a phantom neighbour in
+       * from outside the array would keep them.
+       */
+      case 200:
+        clearLoad();
+        dot(0, nc / 2, 500.0f);              // single on the top edge
+        dot(nr - 1, nc - 3, 500.0f);         // single on the bottom edge
+        dot(nr / 2, 0, 500.0f);              // single on the left edge
+        dot(nr / 2, nc - 1, 500.0f);         // single on the right edge
+        dot(2, 0, 500.0f); dot(2, 1, 500.0f);              // pair across c > 0
+        dot(4, nc - 2, 500.0f); dot(4, nc - 1, 500.0f);    // pair across c < nc-1
+        dot(0, 3, 500.0f); dot(1, 3, 500.0f);              // pair across r > 0
+        dot(nr - 2, 5, 500.0f); dot(nr - 1, 5, 500.0f);    // pair across r < nr-1
+        break;
+
+      case 250:                     // two blobs on a clear mat, then bridged,
+        clearLoad();                // which is the only input union-find sees
+        addBlob(nr * 0.75f, nc * 0.30f, 1.6f, 650.0f);
+        addBlob(nr * 0.75f, nc * 0.62f, 1.6f, 650.0f);
+        break;
+      case 300:
+        addBlob(nr * 0.75f, nc * 0.46f, 1.3f, 650.0f);     // bridge: forces a union
+        break;
+      default: break;
+    }
+    float scale = (f >= 430) ? expf(-(f - 430) / (18.0f * FPS)) : 1.0f;
+    makeFrame(scale);
+    condProcess(dr, DT);
+
+    for (int c = 0; c < nc; c++) {
+      if (outMap[0 * MAX_COLS + c])        hitR0++;
+      if (outMap[(nr - 1) * MAX_COLS + c]) hitR1++;
+    }
+    for (int r = 0; r < nr; r++) {
+      if (outMap[r * MAX_COLS + 0])        hitC0++;
+      if (outMap[r * MAX_COLS + (nc - 1)]) hitC1++;
+    }
+    hitSup += ctel.suppressed;
+    if (nContacts > 1) hitMerge++;
+
+    long sum = 0, chk = 0; int mx = INT32_MIN, mn = INT32_MAX;
+    for (int r = 0; r < nr; r++)
+      for (int c = 0; c < nc; c++) {
+        int i = r * MAX_COLS + c, v = filtMap[i];
+        sum += v;
+        chk += (long)v * (i + 1);          // position-weighted: a value that
+        if (v > mx) mx = v;                // moves between taxels is visible
+        if (v < mn) mn = v;
+      }
+    printf("%s,%d,%ld,%ld,%d,%d,%u,%u,%u,%u,%u,%u,%u\n",
+           name, f, sum, chk, mx, mn,
+           ctel.activeCells, nContacts, nRejected,
+           ctel.suppressed, ctel.frozen, ctel.adapted, ctel.capped);
+  }
+
+  fprintf(stderr,
+          "# %s coverage: row0 %d  row%d %d  col0 %d  col%d %d  "
+          "despeckled %d  multi-contact frames %d\n",
+          name, hitR0, nr - 1, hitR1, hitC0, nc - 1, hitC1, hitSup, hitMerge);
+  if (!hitR0 || !hitR1 || !hitC0 || !hitC1 || !hitSup || !hitMerge) {
+    fprintf(stderr, "# %s: SCENE DOES NOT COVER ITS EDGES - a bitmap or "
+                    "indexing fault could pass unnoticed\n", name);
+    failures++;
+  }
+}
+
 static void euroCheck() {
 #if TAXEL_EURO_FIXED
   // Relative error is only meaningful once alpha is big enough to affect the
@@ -498,31 +628,9 @@ static void euroCheck() {
   if (worstRel > 0.01) { fprintf(stderr, "# ALPHA REL ERROR TOO LARGE\n"); failures++; }
 #endif
 
-  // Deterministic scene: settle, press, hold, release, relax. Same RNG seed in
-  // both builds, so any divergence in the CSV is the filter and nothing else.
-  rng = 0x13579BDFu;
-  cfg.rows = 16; cfg.chans = 16; cfg.banks = 2;
-  sceneInit();
-  condReset(); clearLoad(); simTare();
-
-  printf("frame,sum,max,min,active,contacts\n");
-  for (int f = 0; f < 600; f++) {
-    if (f == 100) addBlob(8.0f, 16.0f, 2.0f, 700.0f);
-    float scale = 1.0f;
-    if (f >= 400) scale = expf(-(f - 400) / (20.0f * FPS));
-    makeFrame(scale);
-    condProcess(dr, DT);
-
-    long sum = 0; int mx = INT32_MIN, mn = INT32_MAX;
-    for (int r = 0; r < cfg.rows; r++)
-      for (int c = 0; c < nCols(); c++) {
-        int v = filtMap[r * MAX_COLS + c];
-        sum += v;
-        if (v > mx) mx = v;
-        if (v < mn) mn = v;
-      }
-    printf("%d,%ld,%d,%d,%u,%u\n", f, sum, mx, mn, ctel.activeCells, nContacts);
-  }
+  printf("scene,frame,sum,chk,max,min,active,contacts,rejected,suppressed,frozen,adapted,capped\n");
+  digestScene(16, 16, 2, "16x32");   // nc == 32: one activity word per row
+  digestScene(32, 12, 1, "32x12");   // nc <  32: exercises the column mask
 }
 
 int main(int argc, char **argv) {

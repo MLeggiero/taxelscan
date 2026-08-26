@@ -16,7 +16,7 @@ SRC       = simtest.cpp ../taxelscan/condition.cpp
 BIN       = sim
 BIN_FIXED = sim-fixed
 
-.PHONY: all test bench compare clean
+.PHONY: all test bench compare regress golden clean
 all: $(BIN)
 
 # Ships as built: float one-euro. See the note in condition.h for why the
@@ -32,6 +32,25 @@ $(BIN_FIXED): $(SRC)
 test: $(BIN)
 	./$(BIN) $(MINUTES)
 
+# Byte-exact check against a committed reference digest.
+#
+# For a change that only rearranges HOW something is computed - packing
+# activity into bitmaps, reindexing an array, splitting a loop - the output
+# must not move at all, and this is a far sharper test of that than a run of
+# pass/fail verdicts. An off-by-one at an array edge changes a handful of
+# taxels in a handful of frames; every A-G check still passes, and this fails
+# on the first frame that differs.
+#
+# Regenerate deliberately, never to make a failure go away:
+#   make golden      (and say in the commit message what legitimately changed)
+regress: $(BIN)
+	@./$(BIN) euro > obj/digest.csv 2>/dev/null
+	@python3 compare_runs.py --exact obj/digest.csv golden/digest.csv
+
+golden: $(BIN) | obj
+	./$(BIN) euro > golden/digest.csv 2>/dev/null
+	@echo "golden digest regenerated - explain the change in the commit message" 
+
 bench: $(BIN)
 	./$(BIN) bench
 
@@ -46,7 +65,7 @@ compare: $(BIN) $(BIN_FIXED) | obj
 	@./$(BIN)       euro > obj/euro-float.csv 2>/dev/null
 	@echo ""
 	@echo "=== pipeline divergence, fixed vs float ==="
-	@python3 compare_euro.py obj/euro-fixed.csv obj/euro-float.csv
+	@python3 compare_runs.py obj/euro-fixed.csv obj/euro-float.csv
 	@echo ""
 	@echo "=== A-G verdicts ==="
 	@./$(BIN)       $(MINUTES) | sed -n 's/^  \(ok\|FAIL\)  *\([^-]*\).*/\1 \2/p' > obj/v-float.txt
