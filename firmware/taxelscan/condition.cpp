@@ -37,14 +37,45 @@ static int16_t  prevFilt[MAX_TAXELS];
 static uint16_t varEma [MAX_TAXELS];     // EMA of |frame-to-frame|, Q4
 static uint8_t  onCnt  [MAX_TAXELS];
 static uint8_t  offCnt [MAX_TAXELS];
-static uint8_t  flags  [MAX_TAXELS];     // bit0 active, bit1 releasable, bit2 capped
+/*
+ * Activity as one bit per taxel, one uint32 per row.
+ *
+ * MAX_COLS is exactly 32, which is what makes this worth doing: connected
+ * components, despeckle and release eligibility were 53.8% of the per-taxel
+ * budget between them (tools/armstages.py), plus the halo inside the baseline
+ * stage, and all four spent it on bounds-checked per-taxel neighbour tests. In
+ * word form a neighbourhood is a shift and an OR.
+ *
+ * The bounds checks do not get reimplemented, they DISAPPEAR: shifting brings
+ * in zeros at the ends, which is exactly "outside the array is not active".
+ * Bit c is column c, so (a << 1) at bit c means "column c-1 was active" and
+ * (a >> 1) at bit c means "column c+1 was active".
+ */
+static uint32_t actBits [MAX_ROWS];     // live active state
+static uint32_t prevBits[MAX_ROWS];     // snapshot taken at frame entry
+static uint32_t haloBits[MAX_ROWS];     // prevBits dilated 3x3, once per frame
+static uint32_t snapBits[MAX_ROWS];     // despeckle's simultaneous snapshot
+static uint32_t relBits [MAX_ROWS];     // releasable
+static uint32_t capBits [MAX_ROWS];     // pinned at the drift cap
 static uint32_t stuckN [MAX_TAXELS];     // consecutive active frames
 static uint16_t label  [MAX_TAXELS];
 static bool     primed = false;
 
-static const uint8_t TF_ACTIVE    = 0x01;
-static const uint8_t TF_RELEASABLE = 0x02;
-static const uint8_t TF_CAPPED    = 0x04;
+static_assert(MAX_COLS == 32, "activity bitmaps assume one uint32 per row");
+
+static inline bool bitAt(const uint32_t *w, int r, int c) {
+  return (w[r] >> c) & 1u;
+}
+
+// MSVC builds sim/ too, and neither of these is standard before C++20.
+#if defined(_MSC_VER)
+#include <intrin.h>
+static inline int ctz32(uint32_t v) { unsigned long i; _BitScanForward(&i, v); return (int)i; }
+static inline int pop32(uint32_t v) { return (int)__popcnt(v); }
+#else
+static inline int ctz32(uint32_t v) { return __builtin_ctz(v); }
+static inline int pop32(uint32_t v) { return __builtin_popcount(v); }
+#endif
 
 static const int MAX_LABELS = 512;
 static uint16_t lparent[MAX_LABELS];
@@ -190,7 +221,12 @@ void condReset(void) {
   memset(varEma, 0, sizeof(varEma));
   memset(onCnt,  0, sizeof(onCnt));
   memset(offCnt, 0, sizeof(offCnt));
-  memset(flags,  0, sizeof(flags));
+  memset(actBits,  0, sizeof(actBits));
+  memset(prevBits, 0, sizeof(prevBits));
+  memset(haloBits, 0, sizeof(haloBits));
+  memset(snapBits, 0, sizeof(snapBits));
+  memset(relBits,  0, sizeof(relBits));
+  memset(capBits,  0, sizeof(capBits));
   memset(stuckN, 0, sizeof(stuckN));
   memset(label,  0, sizeof(label));
   memset(outMap, 0, sizeof(outMap));
@@ -208,7 +244,8 @@ void condSeedBaseline(const int16_t *dr) {
       baseQ8[i] = (int32_t)dr[i] << 8;
       tare0[i]  = dr[i];
       stuckN[i] = 0;
-      flags[i]  = 0;
+      const uint32_t m = 1u << c;
+      actBits[r] &= ~m; relBits[r] &= ~m; capBits[r] &= ~m;
       onCnt[i] = offCnt[i] = 0;
 #if TAXEL_EURO_FIXED
       xhatQ8[i] = 0; dhatQ8[i] = 0;
@@ -292,13 +329,35 @@ void condProcess(const int16_t *dr, float dt) {
   ctel.adapted = ctel.frozen = ctel.released = ctel.capped = 0;
   ctel.suppressed = 0; ctel.activeCells = 0; ctel.peak = 0;
 
+  // Bits above nc-1 are never set, but masking anyway keeps a geometry change
+  // that shrinks nc from leaving stale activity in the high bits.
+  const uint32_t colMask = (nc >= 32) ? 0xFFFFFFFFu : ((1u << nc) - 1u);
+
   // Snapshot the latched state before anything moves. The halo test below has
   // to see one consistent frame, not a mix of this row's updated neighbours
-  // and the next row's stale ones.
-  static uint8_t actPrev[MAX_TAXELS];
-  for (int r = 0; r < nrow; r++)
-    for (int c = 0; c < nc; c++)
-      actPrev[IDX(r, c)] = (flags[IDX(r, c)] & TF_ACTIVE) ? 1 : 0;
+  // and the next row's stale ones. As words that is a 128-byte copy.
+  memcpy(prevBits, actBits, sizeof(prevBits));
+
+  // Dilate it 3x3 ONCE for the whole frame, so the per-taxel halo test below
+  // is a single bit test instead of a nine-way bounds-checked scan. Rows
+  // outside the array contribute nothing, and the column shifts bring in
+  // zeros, so neither direction needs a bounds check.
+  if (cc.haloFreeze) {
+    uint32_t wide[MAX_ROWS];
+    for (int r = 0; r < nrow; r++) {
+      uint32_t a = prevBits[r] & colMask;
+      wide[r] = (a | (a << 1) | (a >> 1)) & colMask;
+    }
+    for (int r = 0; r < nrow; r++) {
+      uint32_t h = wide[r];
+      if (r > 0)        h |= wide[r - 1];
+      if (r < nrow - 1) h |= wide[r + 1];
+      haloBits[r] = h;
+    }
+  } else {
+    // No halo: a taxel freezes only on its own account.
+    memcpy(haloBits, prevBits, sizeof(haloBits));
+  }
 
   for (int r = 0; r < nrow; r++) {
     for (int c = 0; c < nc; c++) {
@@ -312,18 +371,12 @@ void condProcess(const int16_t *dr, float dt) {
       int32_t bq = baseQ8[i];
       int32_t d  = (int32_t)med - (bq >> 8);
 
-      bool actNow = actPrev[i] != 0;
-      bool frozen = actNow;
-      if (cc.haloFreeze && !frozen) {
-        // Guarantee 1: a one-taxel halo, so a spreading contact is not
-        // nibbled at its edges while it grows.
-        for (int dr2 = -1; dr2 <= 1 && !frozen; dr2++)
-          for (int dc = -1; dc <= 1; dc++) {
-            int rr = r + dr2, ccx = c + dc;
-            if (rr < 0 || ccx < 0 || rr >= nrow || ccx >= nc) continue;
-            if (actPrev[IDX(rr, ccx)]) { frozen = true; break; }
-          }
-      }
+      const uint32_t m = 1u << c;
+      bool actNow = bitAt(prevBits, r, c);
+      // Guarantee 1: a one-taxel halo, so a spreading contact is not nibbled
+      // at its edges while it grows. haloBits already carries the dilation
+      // (and equals prevBits when the halo is off), so this is one bit test.
+      bool frozen = bitAt(haloBits, r, c);
 
       if (d < 0) {
         // Falling: fast and ungated. Too-high baselines suppress real contact,
@@ -331,7 +384,7 @@ void condProcess(const int16_t *dr, float dt) {
         int32_t want = (-d) << 8;
         bq -= (want < fallStep) ? want : fallStep;
         ctel.adapted++;
-      } else if (cc.release && (flags[i] & TF_RELEASABLE)) {
+      } else if (cc.release && (relBits[r] & m)) {
         int32_t want = d << 8;
         bq += (want < relStep) ? want : relStep;
         ctel.adapted++; ctel.released++;
@@ -351,8 +404,8 @@ void condProcess(const int16_t *dr, float dt) {
       // "Pinned" means it is at the cap AND still wants to climb - a taxel that
       // merely sits there is not interesting. Flagged with >= rather than >
       // because the clamp above makes the strict test true for one frame only.
-      if (bq >= capQ8 && d > 0) { flags[i] |= TF_CAPPED; ctel.capped++; }
-      else flags[i] &= (uint8_t)~TF_CAPPED;
+      if (bq >= capQ8 && d > 0) { capBits[r] |= m; ctel.capped++; }
+      else capBits[r] &= ~m;
       baseQ8[i] = bq;
 
       int32_t delta = (int32_t)med - (bq >> 8);
@@ -418,15 +471,18 @@ void condProcess(const int16_t *dr, float dt) {
 
       if (!actNow) {
         if (fv >= sOn) {
-          if (++onCnt[i] >= cc.nOn) { flags[i] |= TF_ACTIVE; onCnt[i] = 0; offCnt[i] = 0; }
+          if (++onCnt[i] >= cc.nOn) { actBits[r] |= m; onCnt[i] = 0; offCnt[i] = 0; }
         } else onCnt[i] = 0;
       } else {
         if (fv < sOff) {
-          if (++offCnt[i] >= cc.nOff) { flags[i] &= (uint8_t)~TF_ACTIVE; offCnt[i] = 0; onCnt[i] = 0; }
+          if (++offCnt[i] >= cc.nOff) { actBits[r] &= ~m; offCnt[i] = 0; onCnt[i] = 0; }
         } else offCnt[i] = 0;
       }
 
-      if (flags[i] & TF_ACTIVE) { stuckN[i]++; ctel.activeCells++; }
+      // activeCells is counted by popcount after despeckle rather than
+      // incremented here and decremented there - one place to be wrong
+      // instead of two.
+      if (actBits[r] & m) stuckN[i]++;
       else stuckN[i] = 0;
     }
   }
@@ -436,30 +492,36 @@ void condProcess(const int16_t *dr, float dt) {
   // no active 4-neighbour is noise. This is deliberately NOT a 3x3 median,
   // which would also erase a genuinely thin contact - a probe tip, the edge of
   // a bracket. Done on a snapshot so the test is simultaneous.
-  static uint8_t actSnap[MAX_TAXELS];
   if (cc.despeckle) {
-    for (int r = 0; r < nrow; r++)
-      for (int c = 0; c < nc; c++)
-        actSnap[IDX(r, c)] = (flags[IDX(r, c)] & TF_ACTIVE) ? 1 : 0;
-    for (int r = 0; r < nrow; r++)
-      for (int c = 0; c < nc; c++) {
-        int i = IDX(r, c);
-        if (!actSnap[i]) continue;
-        int n = 0;
-        if (r > 0        && actSnap[i - MAX_COLS]) n++;
-        if (r < nrow - 1 && actSnap[i + MAX_COLS]) n++;
-        if (c > 0        && actSnap[i - 1]) n++;
-        if (c < nc - 1   && actSnap[i + 1]) n++;
-        if (n == 0) { flags[i] &= (uint8_t)~TF_ACTIVE; ctel.suppressed++; ctel.activeCells--; }
+    memcpy(snapBits, actBits, sizeof(snapBits));
+    for (int r = 0; r < nrow; r++) {
+      uint32_t a = snapBits[r] & colMask;
+      if (!a) continue;                       // whole row: nothing to test
+      uint32_t nb = (a << 1) | (a >> 1);      // left and right neighbours
+      if (r > 0)        nb |= snapBits[r - 1];
+      if (r < nrow - 1) nb |= snapBits[r + 1];
+      uint32_t lonely = a & ~nb & colMask;    // active with no active neighbour
+      if (lonely) {
+        actBits[r] &= ~lonely;
+        ctel.suppressed += (uint16_t)pop32(lonely);
       }
+    }
   }
+
+  for (int r = 0; r < nrow; r++) ctel.activeCells += (uint16_t)pop32(actBits[r] & colMask);
 
   // ---- stage 10: connected components ----------------------------------
   uint16_t nextLabel = 1;
   for (int r = 0; r < nrow; r++) {
+    // A row with nothing active still needs its labels cleared, but it does
+    // not need the body. At rest that is every row.
+    if (!(actBits[r] & colMask)) {
+      memset(&label[IDX(r, 0)], 0, (size_t)nc * sizeof(label[0]));
+      continue;
+    }
     for (int c = 0; c < nc; c++) {
       int i = IDX(r, c);
-      if (!(flags[i] & TF_ACTIVE)) { label[i] = 0; continue; }
+      if (!(actBits[r] & (1u << c))) { label[i] = 0; continue; }
       uint16_t up   = (r > 0) ? label[i - MAX_COLS] : 0;
       uint16_t left = (c > 0) ? label[i - 1] : 0;
       if (!up && !left) {
@@ -485,6 +547,18 @@ void condProcess(const int16_t *dr, float dt) {
   }
 
   for (int r = 0; r < nrow; r++) {
+    // Guarantee 3 needs to know which taxels are on a blob's perimeter. A
+    // taxel is interior when all four neighbours are active, so one word of
+    // ANDs settles the whole row at once - and the shifts treat the array
+    // edge as inactive for free, which is what the old four-way bounds test
+    // was spelling out by hand.
+    uint32_t interior;
+    {
+      uint32_t a  = actBits[r] & colMask;
+      uint32_t up = (r > 0)        ? actBits[r - 1] : 0u;
+      uint32_t dn = (r < nrow - 1) ? actBits[r + 1] : 0u;
+      interior = a & up & dn & (a << 1) & (a >> 1) & colMask;
+    }
     for (int c = 0; c < nc; c++) {
       int i = IDX(r, c);
       if (!label[i]) continue;
@@ -504,11 +578,7 @@ void condProcess(const int16_t *dr, float dt) {
 
       // Guarantee 3: perimeter liveness. A real contact has a boundary of
       // partly loaded taxels that keep moving even when its centre is still.
-      bool perim = (r == 0 || c == 0 || r == nrow - 1 || c == nc - 1) ||
-                   !(flags[i - MAX_COLS] & TF_ACTIVE) ||
-                   !(flags[i + MAX_COLS] & TF_ACTIVE) ||
-                   !(flags[i - 1] & TF_ACTIVE) ||
-                   !(flags[i + 1] & TF_ACTIVE);
+      bool perim = !((interior >> c) & 1u);
       if (perim && varEma[i] > ledge[l]) ledge[l] = varEma[i];
     }
   }
@@ -557,11 +627,15 @@ void condProcess(const int16_t *dr, float dt) {
   // perimeter is not alive. A 20-taxel grasp fails three of those four tests
   // no matter how long it sits there.
   for (int r = 0; r < nrow; r++) {
-    for (int c = 0; c < nc; c++) {
+    relBits[r] = 0;
+    if (!cc.release) continue;
+    // Only active taxels can be released, so walk the set bits rather than
+    // every column. At rest there are none and the row costs one test.
+    uint32_t a = actBits[r] & colMask;
+    while (a) {
+      int c = ctz32(a);
+      a &= a - 1;
       int i = IDX(r, c);
-      flags[i] &= (uint8_t)~TF_RELEASABLE;
-      if (!cc.release) continue;
-      if (!(flags[i] & TF_ACTIVE)) continue;
       if (stuckN[i] < stuckLimit) continue;
       if (varEma[i] >= cc.stillness) continue;
       uint16_t l = label[i];
@@ -569,7 +643,7 @@ void condProcess(const int16_t *dr, float dt) {
         if (larea[l] >= cc.coherentArea) continue;     // coherent blob: never
         if (ledge[l] > sigmaQ4[i]) continue;           // live perimeter: never
       }
-      flags[i] |= TF_RELEASABLE;
+      relBits[r] |= 1u << c;
     }
   }
 
