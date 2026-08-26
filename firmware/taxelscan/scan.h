@@ -64,17 +64,29 @@ static const uint32_t LATCH_MASK = 1u   << PIN_ROW_LATCH;
 #define LATCH_LOW()  (sio_hw->gpio_clr = LATCH_MASK)
 #define LATCH_HIGH() (sio_hw->gpio_set = LATCH_MASK)
 
-static const int MAX_ROWS   = 32;
-static const int MAX_CHANS  = 16;
-static const int MAX_BANKS  = 2;
-static const int MAX_COLS   = MAX_CHANS * MAX_BANKS;
-static const int MAX_TAXELS = MAX_ROWS * MAX_COLS;
+static const int MAX_ROWS    = 32;
+static const int MAX_CHANS   = 16;
+static const int MAX_BANKS   = 2;
+static const int MAX_COLS    = MAX_CHANS * MAX_BANKS;
+static const int MAX_TAXELS  = MAX_ROWS * MAX_COLS;     // per sensor
+
+// One reader now drives several mats. They share the row walk and the mux
+// select lines, so a frame covers all of them at once and every mat samples
+// the same row at the same instant.
+//
+// MAX_TAXELS stays PER SENSOR - it is the geometry of one mat, and the
+// conditioning pipeline is written against one mat at a time. MAX_ALL_TAXELS
+// is the size of the arrays that hold every mat's state.
+static const int MAX_SENSORS    = 8;
+static const int MAX_ALL_TAXELS = MAX_SENSORS * MAX_TAXELS;
 
 // ---------------------------------------------------------------- config
 struct Config {
   uint8_t  rows        = 16;   // driven rows, 1..32
   uint8_t  chans       = 16;   // mux channels scanned, 1..16
   uint8_t  banks       = 2;    // 1 = ADC_A only, 2 = both banks   -> 16x32
+  uint8_t  sensors     = 1;    // mats attached, 1..MAX_SENSORS
+  uint8_t  sensorMask  = 0x01; // which of them to scan and condition
   uint16_t settleUs    = 15;   // sense-node settle after a mux change
   uint16_t rowSettleUs = 5;    // after latching a new row
   uint8_t  mode        = 0;    // 0 text, 1 csv, 2 binary v2

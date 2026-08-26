@@ -37,27 +37,43 @@ sio_hw_t *sio_hw = &sio_dummy;
 Config cfg;
 
 // ---------------------------------------------------------------- scene
-static float   rest[MAX_TAXELS];
-static float   load[MAX_TAXELS];
-static int16_t dr  [MAX_TAXELS];
+static float   rest[MAX_ALL_TAXELS];
+static float   load[MAX_ALL_TAXELS];
+static int16_t dr  [MAX_ALL_TAXELS];
 static float   NOISE = 2.5f;          // counts rms, per the bring-up floor
 static const float DT = 0.025f;
 static const int   FPS = 40;
 
-static uint32_t rng = 0x13579BDFu;
-static float uniform() {
-  rng = rng * 1664525u + 1013904223u;
-  return (float)((rng >> 8) & 0xFFFFFF) / 16777216.0f;
+static inline int SB(int s) { return s * MAX_TAXELS; }
+
+/*
+ * One noise stream per mat, not one shared stream.
+ *
+ * This is what makes the cross-talk test meaningful. The proof that the mats
+ * are independent is that mat 0's output is byte-identical whether it runs
+ * alone or alongside seven others - and a single shared generator would break
+ * that by construction, because filling the other seven would advance the
+ * sequence that mat 0 draws from. Per-mat streams mean adding a mat changes
+ * nothing about any other mat's input.
+ */
+static uint32_t rngS[MAX_SENSORS];
+static void seedRng() {
+  for (int s = 0; s < MAX_SENSORS; s++) rngS[s] = 0x13579BDFu + 0x9E3779B9u * (uint32_t)s;
 }
-static float gauss() {               // Box-Muller, good enough and deterministic
-  float u1 = uniform() + 1e-7f, u2 = uniform();
+static float uniform(int s) {
+  rngS[s] = rngS[s] * 1664525u + 1013904223u;
+  return (float)((rngS[s] >> 8) & 0xFFFFFF) / 16777216.0f;
+}
+static float gauss(int s) {          // Box-Muller, good enough and deterministic
+  float u1 = uniform(s) + 1e-7f, u2 = uniform(s);
   return sqrtf(-2.0f * logf(u1)) * cosf(6.2831853f * u2);
 }
 
-static void sceneInit() {
+static void sceneInit(int s = 0) {
+  const int base = SB(s);
   for (int r = 0; r < cfg.rows; r++)
     for (int c = 0; c < nCols(); c++) {
-      int i = r * MAX_COLS + c;
+      int i = base + r * MAX_COLS + c;
       // A connected but untouched mat is not at zero: ~32 sneak paths in
       // parallel put every column at tens of counts, and it varies per channel.
       rest[i] = 25.0f + (float)((c * 7 + r) % 11);
@@ -65,59 +81,69 @@ static void sceneInit() {
     }
 }
 
-static void clearLoad() { memset(load, 0, sizeof(load)); }
+static void clearLoad(int s = 0) {
+  memset(&load[SB(s)], 0, MAX_TAXELS * sizeof(load[0]));
+}
 
-static void addBlob(float cr, float cc, float radius, float amp) {
+static void addBlob(float cr, float cc, float radius, float amp, int s = 0) {
+  const int base = SB(s);
   for (int r = 0; r < cfg.rows; r++)
     for (int c = 0; c < nCols(); c++) {
       float d2 = (r - cr) * (r - cr) + (c - cc) * (c - cc);
       float v = amp * expf(-d2 / (2.0f * radius * radius));
-      if (v > 0.5f) load[r * MAX_COLS + c] += v;
+      if (v > 0.5f) load[base + r * MAX_COLS + c] += v;
     }
+}
+
+static void dot(int r, int c, float amp, int s = 0) {
+  load[SB(s) + r * MAX_COLS + c] += amp;
 }
 
 static void makeFrame(float scale = 1.0f) {
-  for (int r = 0; r < cfg.rows; r++)
-    for (int c = 0; c < nCols(); c++) {
-      int i = r * MAX_COLS + c;
-      float v = rest[i] + load[i] * scale + gauss() * NOISE;
-      if (v < 0) v = 0;
-      if (v > 4095) v = 4095;
-      dr[i] = (int16_t)lrintf(v);
-    }
+  for (int s = 0; s < cfg.sensors; s++) {
+    const int base = SB(s);
+    for (int r = 0; r < cfg.rows; r++)
+      for (int c = 0; c < nCols(); c++) {
+        int i = base + r * MAX_COLS + c;
+        float v = rest[i] + load[i] * scale + gauss(s) * NOISE;
+        if (v < 0) v = 0;
+        if (v > 4095) v = 4095;
+        dr[i] = (int16_t)lrintf(v);
+      }
+  }
 }
 
 static void simTare(int n = 16) {
-  static double acc[MAX_TAXELS];
+  static double acc[MAX_ALL_TAXELS];
   memset(acc, 0, sizeof(acc));
   for (int f = 0; f < n; f++) {
     makeFrame();
-    for (int i = 0; i < MAX_TAXELS; i++) acc[i] += dr[i];
+    for (int i = 0; i < MAX_ALL_TAXELS; i++) acc[i] += dr[i];
   }
-  static int16_t avg[MAX_TAXELS];
-  for (int i = 0; i < MAX_TAXELS; i++) avg[i] = (int16_t)(acc[i] / n);
-  condSeedBaseline(avg);
+  static int16_t avg[MAX_ALL_TAXELS];
+  for (int i = 0; i < MAX_ALL_TAXELS; i++) avg[i] = (int16_t)(acc[i] / n);
+  for (int s = 0; s < cfg.sensors; s++) condSeedBaseline(s, avg);
 }
 
 // ---------------------------------------------------------------- readout
 static int acceptedCount() {
   int n = 0;
-  for (int i = 0; i < nContacts; i++)
-    if (contacts[i].flags & CF_ACCEPTED) n++;
+  for (int i = 0; i < nContacts[0]; i++)
+    if (contacts[0][i].flags & CF_ACCEPTED) n++;
   return n;
 }
 static int32_t bestSum() {
   int32_t best = 0;
-  for (int i = 0; i < nContacts; i++)
-    if ((contacts[i].flags & CF_ACCEPTED) && contacts[i].sum > best)
-      best = contacts[i].sum;
+  for (int i = 0; i < nContacts[0]; i++)
+    if ((contacts[0][i].flags & CF_ACCEPTED) && contacts[0][i].sum > best)
+      best = contacts[0][i].sum;
   return best;
 }
 static int bestArea() {
   int32_t best = 0; int area = 0;
-  for (int i = 0; i < nContacts; i++)
-    if ((contacts[i].flags & CF_ACCEPTED) && contacts[i].sum > best) {
-      best = contacts[i].sum; area = contacts[i].area;
+  for (int i = 0; i < nContacts[0]; i++)
+    if ((contacts[0][i].flags & CF_ACCEPTED) && contacts[0][i].sum > best) {
+      best = contacts[0][i].sum; area = contacts[0][i].area;
     }
   return area;
 }
@@ -186,7 +212,7 @@ static void testSustained(int minutes) {
   check("total force never fell below 95 percent of initial",
         minSum > sum0 * 95 / 100, "%ld vs %ld", (long)minSum, (long)sum0 * 95 / 100);
   check("area never shrank", minArea >= firstArea, "%d vs %d", minArea, firstArea);
-  check("no taxel hit the drift cap", ctel.capped == 0, "%u capped", ctel.capped);
+  check("no taxel hit the drift cap", ctel[0].capped == 0, "%u capped", ctel[0].capped);
 }
 
 // One stuck offset of a given size. Returns the area it occupied, and how many
@@ -198,10 +224,10 @@ static float phantomRun(float radius, float amp, int secs, int *areaOut) {
   for (int f = 0; f < secs * FPS; f++) {
     makeFrame();
     condProcess(dr, DT);
-    if (firstSeen < 0 && ctel.activeCells > 0) {
+    if (firstSeen < 0 && ctel[0].activeCells > 0) {
       firstSeen = f;
     }
-    if (f == firstSeen + 4 * FPS) area = (int)ctel.activeCells;
+    if (f == firstSeen + 4 * FPS) area = (int)ctel[0].activeCells;
     if (firstSeen >= 0 && cleared < 0 && f > firstSeen + 5 * FPS &&
         acceptedCount() == 0 && mapMax() == 0)
       cleared = f;
@@ -303,7 +329,7 @@ static void testFalsePositives(int minutes) {
     makeFrame();
     condProcess(dr, DT);
     if (acceptedCount() > 0) bad++;
-    specks += ctel.suppressed;
+    specks += ctel[0].suppressed;
   }
   check("zero frames report a contact", bad == 0, "%d of %d frames", bad, frames);
   printf("     %d isolated specks were suppressed along the way\n", specks);
@@ -348,7 +374,7 @@ static void testStartupReference() {
   addBlob(16.0f, 6.0f, 1.6f, 400.0f);
   simTare();                                  // tare WITH a hand on the mat
   int worst = 0, wi = -1, med = 0;
-  int n = condTareOutliers(cc.maxDrift, &worst, &wi, &med);
+  int n = condTareOutliers(0, cc.maxDrift, &worst, &wi, &med);
   check("shape test flags a localised load", n > 0,
         "%d taxels, worst %+d over median %d at r%d c%d",
         n, worst, med, wi / MAX_COLS, wi % MAX_COLS);
@@ -357,7 +383,7 @@ static void testStartupReference() {
   condReset();
   clearLoad();
   simTare();
-  n = condTareOutliers(cc.maxDrift, &worst, &wi, &med);
+  n = condTareOutliers(0, cc.maxDrift, &worst, &wi, &med);
   check("clear mat does not false-alarm", n == 0, "%d flagged, worst %+d", n, worst);
 
   // Record this clear state as the boot reference.
@@ -373,8 +399,8 @@ static void testStartupReference() {
     for (int c = 0; c < nCols(); c++) load[r * MAX_COLS + c] = 300.0f;
   simTare();
 
-  int nShape = condTareOutliers(cc.maxDrift, &worst, &wi, &med);
-  int nRef   = condRefCompare(cc.maxDrift, &worst, &wi);
+  int nShape = condTareOutliers(0, cc.maxDrift, &worst, &wi, &med);
+  int nRef   = condRefCompare(0, cc.maxDrift, &worst, &wi);
   printf("     uniform 300-count load: shape test flags %d, reference test flags %d\n",
          nShape, nRef);
   check("shape test is blind to a uniform load, as expected", nShape == 0,
@@ -425,12 +451,12 @@ static void bench() {
 
     reset();
     double rest = timeCond(N);
-    int restCells = ctel.activeCells;
+    int restCells = ctel[0].activeCells;
 
     reset();
     addBlob(g.rows / 2.0f, nCols() / 2.0f, 2.2f, 700.0f);
     double press = timeCond(N);
-    int pressCells = ctel.activeCells, pressCon = nContacts;
+    int pressCells = ctel[0].activeCells, pressCon = nContacts[0];
 
     // Worst case: drop the thresholds so the noise floor itself goes active.
     reset();
@@ -438,7 +464,7 @@ static void bench() {
     uint16_t onSave = cc.minOn, offSave = cc.minOff; uint8_t konSave = cc.kOn, nonSave = cc.nOn;
     cc.minOn = 0; cc.minOff = 0; cc.kOn = 1; cc.nOn = 1;
     double storm = timeCond(N);
-    int stormCells = ctel.activeCells, stormCon = nContacts;
+    int stormCells = ctel[0].activeCells, stormCon = nContacts[0];
     cc.minOn = onSave; cc.minOff = offSave; cc.kOn = konSave; cc.nOn = nonSave;
 
     reset();
@@ -501,12 +527,13 @@ static void bench() {
  * checksum weights each taxel by its index, so a value moving from one taxel
  * to another is visible where a plain sum would hide it.
  */
-static void dot(int r, int c, float amp) { load[r * MAX_COLS + c] += amp; }
-
-static void digestScene(int rows, int chans, int banks, const char *name) {
-  rng = 0x13579BDFu;
+static void digestScene(int rows, int chans, int banks, const char *name,
+                        int nsens = 1) {
+  seedRng();
   cfg.rows = (uint8_t)rows; cfg.chans = (uint8_t)chans; cfg.banks = (uint8_t)banks;
-  sceneInit();
+  cfg.sensors = (uint8_t)nsens;
+  cfg.sensorMask = (uint8_t)((nsens >= 8) ? 0xFF : ((1u << nsens) - 1u));
+  for (int s = 0; s < nsens; s++) sceneInit(s);
   condReset(); clearLoad(); simTare();
 
   const int nr = cfg.rows, nc = nCols();
@@ -562,6 +589,24 @@ static void digestScene(int rows, int chans, int banks, const char *name) {
         break;
       default: break;
     }
+    /*
+     * Decoys on every other mat, deliberately out of step with mat 0.
+     *
+     * The claim being tested is that the mats are independent, and the sharp
+     * way to test it is that mat 0's digest comes out byte-identical whether
+     * it runs alone or alongside seven busy neighbours. That only means
+     * something if the neighbours are actually doing something, and doing
+     * something DIFFERENT - decoys that pressed in unison with mat 0 would
+     * hide a base-offset fault that mapped one mat onto another.
+     */
+    for (int s = 1; s < nsens; s++) {
+      int phase = (f + 37 * s) % 300;
+      if (phase == 0)  addBlob((float)((nr / 2 + 3 * s) % nr),
+                               (float)((nc / 2 + 5 * s) % nc), 1.8f, 640.0f, s);
+      if (phase == 120) clearLoad(s);
+      if (phase == 150) dot((2 * s) % nr, (3 * s) % nc, 520.0f, s);
+    }
+
     float scale = (f >= 430) ? expf(-(f - 430) / (18.0f * FPS)) : 1.0f;
     makeFrame(scale);
     condProcess(dr, DT);
@@ -574,8 +619,8 @@ static void digestScene(int rows, int chans, int banks, const char *name) {
       if (outMap[r * MAX_COLS + 0])        hitC0++;
       if (outMap[r * MAX_COLS + (nc - 1)]) hitC1++;
     }
-    hitSup += ctel.suppressed;
-    if (nContacts > 1) hitMerge++;
+    hitSup += ctel[0].suppressed;
+    if (nContacts[0] > 1) hitMerge++;
 
     long sum = 0, chk = 0; int mx = INT32_MIN, mn = INT32_MAX;
     for (int r = 0; r < nr; r++)
@@ -588,8 +633,8 @@ static void digestScene(int rows, int chans, int banks, const char *name) {
       }
     printf("%s,%d,%ld,%ld,%d,%d,%u,%u,%u,%u,%u,%u,%u\n",
            name, f, sum, chk, mx, mn,
-           ctel.activeCells, nContacts, nRejected,
-           ctel.suppressed, ctel.frozen, ctel.adapted, ctel.capped);
+           ctel[0].activeCells, nContacts[0], nRejected[0],
+           ctel[0].suppressed, ctel[0].frozen, ctel[0].adapted, ctel[0].capped);
   }
 
   fprintf(stderr,
@@ -638,6 +683,17 @@ int main(int argc, char **argv) {
     condInit();
     sceneInit();
     euroCheck();
+    return failures ? 1 : 0;
+  }
+  if (argc > 1 && !strcmp(argv[1], "multi")) {
+    // Identical scenes on mat 0, but with seven busy neighbours. The digest
+    // must match golden/digest.csv exactly; anything else is one mat's state
+    // reaching another.
+    condInit();
+    printf("scene,frame,sum,chk,max,min,active,contacts,rejected,"
+           "suppressed,frozen,adapted,capped\n");
+    digestScene(16, 16, 2, "16x32", MAX_SENSORS);
+    digestScene(32, 12, 1, "32x12", MAX_SENSORS);
     return failures ? 1 : 0;
   }
   if (argc > 1 && !strcmp(argv[1], "bench")) {

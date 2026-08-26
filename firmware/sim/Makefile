@@ -16,7 +16,7 @@ SRC       = simtest.cpp ../taxelscan/condition.cpp
 BIN       = sim
 BIN_FIXED = sim-fixed
 
-.PHONY: all test bench compare regress golden clean
+.PHONY: all test bench compare regress multi golden clean
 all: $(BIN)
 
 # Ships as built: float one-euro. See the note in condition.h for why the
@@ -46,6 +46,19 @@ test: $(BIN)
 regress: $(BIN)
 	@./$(BIN) euro > obj/digest.csv 2>/dev/null
 	@python3 compare_runs.py --exact obj/digest.csv golden/digest.csv
+
+# Are the mats independent?
+#
+# The sharp form of that question is: does mat 0 produce byte-identical output
+# whether it runs alone or alongside seven busy neighbours? Anything else means
+# one mat's state is reaching another - a base offset dropped somewhere, or an
+# array that is per-mat being indexed as though it were global.
+#
+# The decoys are deliberately out of step with mat 0. Neighbours pressing in
+# unison would hide exactly the fault this is looking for.
+multi: $(BIN) | obj
+	@./$(BIN) multi > obj/multi.csv
+	@python3 compare_runs.py --exact obj/multi.csv golden/digest.csv
 
 golden: $(BIN) | obj
 	./$(BIN) euro > golden/digest.csv 2>/dev/null
