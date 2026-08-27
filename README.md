@@ -82,10 +82,6 @@ firmware/        RP2350 firmware, native simulator, host tools
 assets/          README animation and pipeline diagram
 ```
 
-<p align="center">
-  <img src="fork-adapter/fork_render.png" alt="Rendered passive fork adapter for connecting two tactile fingers" width="700">
-</p>
-
 The board and firmware are working hardware, and all performance numbers above
 were measured rather than estimated. One tested assembly still has imperfect
 column-tail seating; the no-press connectivity sweep and troubleshooting steps
