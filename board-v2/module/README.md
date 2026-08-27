@@ -61,12 +61,46 @@ each of these makes the generator fail:
 | An analog guard pin reassigned | `SENSE_A_OUT at pin 7 is not flanked by AGND at 8` |
 | A column dropped from the mux | `expected 32 COL_n nets, got 31` |
 
+## The schematic
+
+`module.kicad_sch` is generated the same way and for the same reason:
+`./gen_schematic.py` transforms rev-1's schematic rather than redrawing it, so
+every 595, mux and buffer keeps the position, orientation and labels it was
+verified with. rev-1 was itself produced by a generator (`flexitac_gen`), so
+this fits the existing workflow rather than fighting it.
+
+It is written in **KiCad 7 format on purpose**. kiutils writes that natively,
+`kicad-cli` can then load it and export a netlist to check, and KiCad 10 opens
+and upgrades it on the way in. Emitting v10 directly would mean nothing in this
+toolchain could verify it.
+
+**Power symbols become global labels.** Partly because kiutils' round-trip does
+not preserve whatever makes an implicit power net resolve — rev-1's three power
+nets come back as `<NO NET>` — but mostly because this board has *two* grounds.
+PWR_GND carries up to 30 mA of press-correlated row current and AGND must carry
+none; two identical-looking ground symbols is exactly how that distinction gets
+lost at layout. Named labels put it on the sheet where it can be seen.
+
+### Verification
+
+`./gen_schematic.py` ends by having **KiCad itself** export a netlist from the
+generated file and comparing it against `module.net`:
+
+    KiCad loads it and exports 87 nets
+    all 87 match module.net exactly
+
+That is the only check worth much here — everything before it is the script
+agreeing with itself, while this is KiCad's own parser and connectivity engine
+reading what was written. It earned its keep immediately: the first run came
+back 85/87, because C9 (the bulk cap) had been moved to ROW_VCC in `module.net`
+but left on the analog rail by the schematic transform.
+
+`module.pdf` is the rendered sheet, for looking at without KiCad installed.
+
 ## Still to do
 
-The schematic and PCB. `module.net` is the electrical design and is complete
-and checked; there is no `.kicad_sch` or `.kicad_pcb` yet. No KiCad is
-installed in this environment, so a schematic generated here could not be
-opened, rendered or ERC'd — that step needs a machine with KiCad on it. The
-netlist imports directly, and rev-1's symbol and footprint assignments carry
-over unchanged (see `BOM.csv`), so that is a mechanical step rather than a
-design one.
+The PCB. There is no `.kicad_pcb` — placing and routing ~90 nets is not
+something to do without opening the board editor. And `kicad-cli` in KiCad 7
+has no ERC subcommand (it arrived in 8), so this schematic is checked for
+connectivity but **not** for electrical rules; run ERC once on a machine with
+KiCad 8 or newer.
