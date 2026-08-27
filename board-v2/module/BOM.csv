@@ -1,0 +1,13 @@
+Reference,Value,Footprint,Note
+U1-U4,SN74LVC595A,Package_SO:TSSOP-16_4.4x5mm_P0.65mm,32 row drivers
+"U5,U6",CD74HC4067SM,Package_SO:SSOP-24_5.3x8.2mm_P0.65mm,"32 columns, 2 banks"
+U7,TLV9062,Package_SO:MSOP-8_3x3mm_P0.65mm,dual unity-gain buffer
+"R1,R2",3.3k,Resistor_SMD:R_0603_1608Metric,"sense pulldowns, to AGND"
+"R3,R4",33R,Resistor_SMD:R_0603_1608Metric,SRCLK/RCLK damping
+"R6,R7",51R,Resistor_SMD:R_0603_1608Metric,NEW: buffer output isolation
+R8,0R,Resistor_SMD:R_0603_1608Metric,NEW: ROW_VCC Kelvin sense tap
+C1-C8,100nF,Capacitor_SMD:C_0603_1608Metric,per-IC decoupling
+C9,22uF,Capacitor_SMD:C_0805_2012Metric,CHANGED: bulk on ROW_VCC
+"J1,J2",FFC_32P_0.5mm,FlexiTac:FFC_0.5mm_FH12_32_16_12way_Composite,"rows, columns"
+J3,FFC_20P_0.5mm,Connector_FFC-FPC:Hirose_FH12-20S-0.5SH_1x20-1MP_P0.50mm_Horizontal,NEW: cable to hub
+TP1-TP4,TestPoint,TestPoint:TestPoint_Pad_D1.0mm,"NEW: ROW_DATA, ROW_VCC, SENSE_A/B"
