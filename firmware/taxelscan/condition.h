@@ -96,9 +96,18 @@ struct CondCfg {
   // --- thresholds --------------------------------------------------------
   uint8_t  kOn  = 6;             // sigma multipliers
   uint8_t  kOff = 3;
-  uint16_t minOn  = 25;          // absolute floors, counts
-  uint16_t minOff = 12;
-  uint8_t  nOn  = 3;             // debounce, frames
+  // Absolute floors, counts. These dominate until sigma is characterised under
+  // real service noise: measured sigma on a quiet bench is about 0.5 counts, so
+  // kOn*sigma is ~3 and never reaches these.
+  //
+  // These are the `o sens 2` values. A soak on an untouched mat measured zero
+  // false positives here, and zero again with the gate fully open, so the
+  // conservative floors were only ever discarding real contacts. That result
+  // came from a bench with no motors running; `o sens 0` restores the strict
+  // values in one command if a noisier environment needs them.
+  uint16_t minOn  = 5;
+  uint16_t minOff = 2;
+  uint8_t  nOn  = 2;             // debounce, frames
   uint8_t  nOff = 5;
 
   // --- filters -----------------------------------------------------------
@@ -111,7 +120,7 @@ struct CondCfg {
   // --- spatial -----------------------------------------------------------
   bool     despeckle = true;
   uint8_t  minArea   = 2;        // 1 keeps thin contacts: a probe, a wire edge
-  int32_t  minSum    = 120;
+  int32_t  minSum    = 15;
   bool     gateMap   = true;     // zero taxels outside an accepted contact
 };
 extern CondCfg cc;

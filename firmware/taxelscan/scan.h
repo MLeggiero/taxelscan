@@ -79,6 +79,33 @@ struct Config {
   uint16_t rowSettleUs = 5;    // after latching a new row
   uint8_t  mode        = 0;    // 0 text, 1 csv, 2 binary v2
 
+  /*
+   * Conditioning bypass. 0 is the full pipeline. 1 hands back the
+   * dark-referenced frame with nothing else done to it: no baseline, no
+   * filters, no thresholds, no contacts. 2 also drops the dark reference, so
+   * what comes out is the ADC reading and nothing else.
+   *
+   * Level 1 is what you usually want. The dark reference is a measurement
+   * technique rather than conditioning: it removes amplifier and mux offset by
+   * differential measurement, and switching it off makes the data worse without
+   * making it more honest. Level 2 exists for checking the analog front end
+   * itself.
+   */
+  uint8_t  rawLevel    = 0;
+
+  /*
+   * Standalone operation. The board is a sensor, not a peripheral: with
+   * autoRun set it scans, conditions and drives the status pixel from boot with
+   * no host involved at all. Nothing needs to connect for it to work.
+   *
+   * autoEmit is separate on purpose. Sensing and reporting are different jobs,
+   * and streaming binary frames at 80 fps into a USB endpoint nobody is reading
+   * is not a useful default. Turn it on if the board is wired to something that
+   * always wants frames; leave it off and 'c' starts the stream on demand.
+   */
+  bool     autoRun     = true;
+  bool     autoEmit    = false;
+
   // --- acquisition -------------------------------------------------------
   uint8_t  oversample  = 2;    // ADC samples per taxel
   uint8_t  spreadUs    = 2;    // gap between them: sets the boxcar null at 1/T

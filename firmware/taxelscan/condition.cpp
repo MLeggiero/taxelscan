@@ -179,6 +179,30 @@ void condProcess(const int16_t *dr, float dt) {
   if (dt < 0.002f) dt = 0.002f;
   if (dt > 0.100f) dt = 0.100f;
 
+  /*
+   * Conditioning bypass. Nothing is subtracted, nothing is filtered, nothing is
+   * gated, and no contacts are produced. The baseline is deliberately NOT
+   * updated while bypassed, because feeding it unconditioned data would leave
+   * it wrong on the way out; instead the next non-raw frame reseeds it.
+   */
+  static uint8_t lastRaw = 0;
+  if (cfg.rawLevel) {
+    lastRaw = cfg.rawLevel;
+    ctel.peak = 0;
+    for (int r = 0; r < nrow; r++)
+      for (int c = 0; c < nc; c++) {
+        int i = IDX(r, c);
+        filtMap[i] = outMap[i] = dr[i];
+        if (dr[i] > ctel.peak) ctel.peak = dr[i];
+      }
+    nContacts = nRejected = 0;
+    ctel.adapted = ctel.frozen = ctel.released = ctel.capped = 0;
+    ctel.suppressed = ctel.activeCells = 0;
+    ctel.condUs = micros() - t_enter;
+    return;
+  }
+  if (lastRaw) { lastRaw = 0; primed = false; }   // reseed on the way out
+
   if (!primed) condSeedBaseline(dr);
 
   // Passthrough mode: baseline subtraction only. Kept because A/B against the

@@ -194,7 +194,7 @@ void scanFrame(void) {
   for (uint8_t r = 0; r < cfg.rows; r++) {
     for (int c = 0; c < nc; c++) {
       int32_t d = 0;
-      if (cfg.darkRef) {
+      if (cfg.darkRef && cfg.rawLevel < 2) {
         uint8_t bank = (c >= cfg.chans) ? 1 : 0;
         uint8_t k    = (uint8_t)(c % cfg.chans);
         d = darkQ8[bank][k] >> 8;
