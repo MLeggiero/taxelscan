@@ -190,14 +190,17 @@ static void needIdle() {
 // whole job is to leave the matrix parked so it can be probed with a meter, and
 // resuming the scan would immediately undo that.
 static void resumeIfPaused(char cmd) {
-  if (!resumeAfterCmd) return;
+  bool wasStreaming = resumeAfterCmd;
   resumeAfterCmd = false;
   if (cmd == 'k' || cmd == 'b') {
-    Serial.println(F("# rows left parked - press 'c' when you are done probing"));
+    if (wasStreaming || cfg.autoRun)
+      Serial.println(F("# rows left parked - press 'c' when you are done probing"));
     return;
   }
-  streaming = true;
-  scanResume();
+  if (wasStreaming) streaming = true;
+  // Sensing comes back even if nothing was streaming, because with autoRun the
+  // board is supposed to be live whenever it is powered.
+  if (wasStreaming || cfg.autoRun) scanResume();
 }
 
 // ---------------------------------------------------------------- output
@@ -933,6 +936,9 @@ static const Param params[] = {
   { "darkref",  P_BOOL, &cfg.darkRef,       0,    1,      "subtract the all-rows-low reference" },
   { "darkshift",P_U8,   &cfg.darkShift,     0,    8,      "dark EMA alpha = 1/2^n" },
 
+  { "raw",      P_U8,   &cfg.rawLevel,      0,    2,      "0 pipeline, 1 no conditioning, 2 also no dark ref" },
+  { "autorun",  P_BOOL, &cfg.autoRun,       0,    1,      "sense + pixel from boot, no host needed" },
+  { "autoemit", P_BOOL, &cfg.autoEmit,      0,    1,      "also stream frames from boot" },
   { "cond",     P_BOOL, &cc.enable,         0,    1,      "master: pipeline on/off" },
   { "fall",     P_U16,  &cc.fallRate,       0,    2000,   "baseline fall, counts/s (ungated)" },
   { "rise",     P_U16,  &cc.riseRate,       0,    2000,   "baseline rise, counts/s (gated)" },
@@ -978,6 +984,41 @@ static void paramPrint(const Param &p) {
   }
 }
 
+/*
+ * Sensitivity presets. These move the acceptance floors as a group, because
+ * moving one of them alone usually does not do what you expect: `minon` decides
+ * which taxels count as active, while `minarea` and `minsum` decide what counts
+ * as a contact, and a light touch can fail either test.
+ *
+ * For scale, measured noise on a quiet bench is about 0.5 counts of sigma after
+ * filtering, so even level 3 sits several sigma clear of it. The real limit is
+ * not electrical noise, it is drift and creep residue, which is why the higher
+ * levels get riskier in service rather than on the bench.
+ */
+static void sensPreset(int lvl) {
+  switch (lvl) {
+    case 0:   // conservative, the original shipping values
+      cc.minOn = 25; cc.minOff = 12; cc.minSum = 120; cc.minArea = 2;
+      cc.nOn = 3; cc.despeckle = true; break;
+    case 1:   // default
+      cc.minOn = 10; cc.minOff = 5;  cc.minSum = 40;  cc.minArea = 2;
+      cc.nOn = 3; cc.despeckle = true; break;
+    case 2:   // sensitive
+      cc.minOn = 5;  cc.minOff = 2;  cc.minSum = 15;  cc.minArea = 2;
+      cc.nOn = 2; cc.despeckle = true; break;
+    case 3:   // maximum: single taxels accepted, speck removal off
+      cc.minOn = 3;  cc.minOff = 1;  cc.minSum = 5;   cc.minArea = 1;
+      cc.nOn = 1; cc.despeckle = false; break;
+    default: Serial.println(F("# usage: o sens 0|1|2|3")); return;
+  }
+  Serial.printf("# sensitivity %d: minon %u minoff %u minsum %ld minarea %u "
+                "non %u despeckle %s\n", lvl, cc.minOn, cc.minOff,
+                (long)cc.minSum, cc.minArea, cc.nOn, cc.despeckle ? "on" : "off");
+  if (lvl >= 3)
+    Serial.println(F("# level 3 accepts single taxels and disables speck removal.\n"
+                     "# Expect phantoms to return. Soak with logging before trusting it."));
+}
+
 static void options(char *cmd) {
   char name[24] = {0};
   float val = 0;
@@ -986,8 +1027,11 @@ static void options(char *cmd) {
     Serial.println(F("# name       value       meaning"));
     for (int i = 0; i < NPARAM; i++) { Serial.print("# "); paramPrint(params[i]); }
     Serial.println(F("# set with: o <name> <value>"));
+    Serial.println(F("# o sens 0|1|2|3   acceptance preset, 0 strictest, 3 most sensitive"));
     return;
   }
+  if (!strcasecmp(name, "sens")) { sensPreset(got >= 2 ? (int)val : -1); return; }
+
   for (int i = 0; i < NPARAM; i++) {
     if (strcasecmp(name, params[i].name)) continue;
     const Param &p = params[i];
@@ -1045,9 +1089,15 @@ static void showCfg() {
   Serial.printf("# settle=%uus rowSettle=%uus ovs=%u spread=%uus period=%luus\n",
                 cfg.settleUs, cfg.rowSettleUs, cfg.oversample, cfg.spreadUs,
                 (unsigned long)cfg.framePeriodUs);
+  // Easy to forget you left it bypassed, and a raw stream can look plausible.
+  if (cfg.rawLevel)
+    Serial.printf("# *** RAW MODE %u: conditioning bypassed%s. 'o raw 0' to restore ***\n",
+                  cfg.rawLevel, cfg.rawLevel >= 2 ? ", dark reference off" : "");
   Serial.printf("# pipeline %s, gate %s, sigma %s, mode %u\n",
                 cc.enable ? "on" : "OFF", cc.gateMap ? "on" : "off",
                 sigmaCharacterised ? "characterised" : "DEFAULT (run 'n')", cfg.mode);
+  Serial.printf("# acceptance: minon %u minoff %u minarea %u minsum %ld (o sens 0-3)\n",
+                cc.minOn, cc.minOff, cc.minArea, (long)cc.minSum);
   Serial.printf("# last scan %lu us, period %lu us, overruns %lu\n",
                 (unsigned long)telem.scanUs, (unsigned long)telem.periodUs,
                 (unsigned long)telem.overruns);
@@ -1065,7 +1115,12 @@ static void handle(char *s) {
       ledUpdate(gatedPeak());
     } break;
     case 'c': streaming = true;  scanResume(); break;
-    case 'x': streaming = false; resumeAfterCmd = false; scanPause(); break;
+    case 'x':
+      streaming = false; resumeAfterCmd = false;
+      if (!cfg.autoRun) scanPause();
+      else Serial.println(F("# emission stopped; sensing and the pixel keep running "
+                            "(o autorun 0 to stop those too)"));
+      break;
     case 't': tare(); break;
     case 'z': cc.gateMap = !cc.gateMap; showCfg(); break;
     case 'R': needIdle(); condReset(); Serial.println(F("# pipeline state cleared")); break;
@@ -1156,6 +1211,13 @@ void setup() {
 
   sysReady = true;
   ledWrite(tareSuspect ? LED_SUSPECT : LED_IDLE, 0);
+
+  if (cfg.autoRun) {
+    scanResume();
+    streaming = cfg.autoEmit;
+    Serial.printf("# running standalone: sensing and status pixel live, "
+                  "emission %s ('c' starts it)\n", cfg.autoEmit ? "on" : "off");
+  }
 }
 
 void setup1() {
@@ -1175,12 +1237,23 @@ void loop() {
     else if (n < sizeof(buf) - 1)  buf[n++] = ch;
   }
 
-  if (streaming && scanCopyLatest(&work[0][0])) {
+  /*
+   * Sensing runs whenever core 1 is scanning, which with cfg.autoRun is from
+   * boot onward with no host involved. Emission is a separate decision. That
+   * split is what lets the board be a standalone sensor: the pipeline runs, the
+   * contact list is current and the status pixel tracks pressure whether or not
+   * anything is listening on USB.
+   */
+  if (scanRun && scanCopyLatest(&work[0][0])) {
     float dt = telem.periodUs ? telem.periodUs / 1e6f : cfg.framePeriodUs / 1e6f;
     condProcess(&work[0][0], dt);
-    uint32_t e0 = micros();
-    emit(telem.periodUs);
-    lastEmitUs = micros() - e0;
+    if (streaming) {
+      uint32_t e0 = micros();
+      emit(telem.periodUs);
+      lastEmitUs = micros() - e0;
+    } else {
+      lastEmitUs = 0;
+    }
     ledUpdate(gatedPeak());
   }
 }

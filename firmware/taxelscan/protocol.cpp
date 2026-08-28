@@ -41,6 +41,7 @@ void emitBinV2(void) {
   if (cfg.darkRef) f |= FF_DARKREF;
   if (sigmaCharacterised) f |= FF_SIGMA;
   if (tareSuspect) f |= FF_TARE_SUSPECT;
+  if (cfg.rawLevel) f |= FF_RAW;
 
   uint8_t *h = txbuf;
   h[0] = 'F'; h[1] = 'T';

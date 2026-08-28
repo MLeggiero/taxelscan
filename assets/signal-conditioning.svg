@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 660" role="img" aria-labelledby="title desc">
+  <title id="title">TaxelScan signal-conditioning pipeline</title>
+  <desc id="desc">Ten processing stages split between RP2350 core 1 acquisition and core 0 conditioning, ending in a cleaned pressure map, contact list, and telemetry.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head"/>
+    </marker>
+    <style>
+      text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .heading { fill: #0f172a; font-size: 27px; font-weight: 600; }
+      .subtitle { fill: #475569; font-size: 15px; }
+      .lane { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; }
+      .lane-core0 { fill: #f4fbf8; }
+      .lane-label { font-size: 14px; font-weight: 600; letter-spacing: 1.2px; }
+      .core1-label { fill: #1d4ed8; }
+      .core0-label { fill: #047857; }
+      .node { fill: #ffffff; stroke-width: 1.5; }
+      .acq { stroke: #60a5fa; }
+      .cond { stroke: #6ee7b7; }
+      .node-title { fill: #0f172a; font-size: 15px; font-weight: 600; text-anchor: middle; }
+      .node-copy { fill: #475569; font-size: 13px; text-anchor: middle; }
+      .number-core1 { fill: #2563eb; }
+      .number-core0 { fill: #059669; }
+      .number-text { fill: #ffffff; font-size: 13px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
+      .arrow { fill: none; stroke: #64748b; stroke-width: 2; marker-end: url(#arrow); }
+      .arrow-head { fill: #64748b; }
+      .handoff { fill: #64748b; font-size: 12px; text-anchor: end; }
+      .output { fill: #fff7ed; stroke: #f59e0b; stroke-width: 1.5; }
+      .output-title { fill: #9a3412; font-size: 18px; font-weight: 600; text-anchor: middle; }
+      .output-copy { fill: #7c2d12; font-size: 14px; text-anchor: middle; }
+      @media (prefers-color-scheme: dark) {
+        .heading, .node-title { fill: #f8fafc; }
+        .subtitle, .node-copy, .handoff { fill: #cbd5e1; }
+        .lane { fill: #111827; stroke: #334155; }
+        .lane-core0 { fill: #0d1f1a; }
+        .node { fill: #172033; }
+        .acq { stroke: #3b82f6; }
+        .cond { stroke: #10b981; }
+        .arrow { stroke: #94a3b8; }
+        .arrow-head { fill: #94a3b8; }
+        .output { fill: #2a1b0d; stroke: #f59e0b; }
+        .output-title { fill: #fdba74; }
+        .output-copy { fill: #fed7aa; }
+      }
+    </style>
+  </defs>
+
+  <text x="32" y="38" class="heading">Signal conditioning on the RP2350</text>
+  <text x="32" y="64" class="subtitle">Acquisition stays on a fixed deadline while the previous frame is conditioned and streamed in parallel.</text>
+
+  <rect x="24" y="88" width="1152" height="188" rx="16" class="lane"/>
+  <text x="48" y="116" class="lane-label core1-label">CORE 1 · ACQUISITION</text>
+
+  <g transform="translate(48 136)">
+    <rect width="238" height="110" rx="12" class="node acq"/>
+    <circle cx="24" cy="24" r="14" class="number-core1"/>
+    <text x="24" y="24" class="number-text">1</text>
+    <text x="119" y="51" class="node-title">Bracketed dark reference</text>
+    <text x="119" y="76" class="node-copy">All rows low, before + after scan</text>
+    <text x="119" y="96" class="node-copy">Per-column EMA tracks electronics drift</text>
+  </g>
+
+  <g transform="translate(336 136)">
+    <rect width="238" height="110" rx="12" class="node acq"/>
+    <circle cx="24" cy="24" r="14" class="number-core1"/>
+    <text x="24" y="24" class="number-text">2</text>
+    <text x="119" y="51" class="node-title">Row walk + oversampling</text>
+    <text x="119" y="76" class="node-copy">Drive one row; scan both column muxes</text>
+    <text x="119" y="96" class="node-copy">Spread samples across the dwell</text>
+  </g>
+
+  <g transform="translate(624 136)">
+    <rect width="238" height="110" rx="12" class="node acq"/>
+    <circle cx="24" cy="24" r="14" class="number-core1"/>
+    <text x="24" y="24" class="number-text">3</text>
+    <text x="119" y="51" class="node-title">Discard + trim</text>
+    <text x="119" y="76" class="node-copy">Drop ADC switch carry-over</text>
+    <text x="119" y="96" class="node-copy">Reject burst minimum and maximum</text>
+  </g>
+
+  <g transform="translate(912 136)">
+    <rect width="238" height="110" rx="12" class="node acq"/>
+    <circle cx="24" cy="24" r="14" class="number-core1"/>
+    <text x="24" y="24" class="number-text">4</text>
+    <text x="119" y="51" class="node-title">Differential frame</text>
+    <text x="119" y="76" class="node-copy">Taxel sample − filtered dark reference</text>
+    <text x="119" y="96" class="node-copy">Valid even while the mat is loaded</text>
+  </g>
+
+  <path d="M 286 191 H 326" class="arrow"/>
+  <path d="M 574 191 H 614" class="arrow"/>
+  <path d="M 862 191 H 902" class="arrow"/>
+
+  <rect x="24" y="300" width="1152" height="244" rx="16" class="lane lane-core0"/>
+  <text x="48" y="328" class="lane-label core0-label">CORE 0 · CONDITION THE PREVIOUS FRAME</text>
+
+  <path d="M 1031 246 V 345" class="arrow"/>
+  <text x="1018" y="289" class="handoff">double-buffer handoff</text>
+
+  <g transform="translate(974 358)">
+    <rect width="170" height="144" rx="12" class="node cond"/>
+    <circle cx="23" cy="23" r="14" class="number-core0"/>
+    <text x="23" y="23" class="number-text">5</text>
+    <text x="85" y="53" class="node-title">Median of 3</text>
+    <text x="85" y="80" class="node-copy">Rejects one-frame</text>
+    <text x="85" y="99" class="node-copy">spikes before they</text>
+    <text x="85" y="118" class="node-copy">reach the baseline</text>
+  </g>
+
+  <g transform="translate(788 358)">
+    <rect width="170" height="144" rx="12" class="node cond"/>
+    <circle cx="23" cy="23" r="14" class="number-core0"/>
+    <text x="23" y="23" class="number-text">6</text>
+    <text x="85" y="53" class="node-title">Adaptive baseline</text>
+    <text x="85" y="80" class="node-copy">Fast fall, slow gated rise</text>
+    <text x="85" y="99" class="node-copy">Freeze active cells + halo</text>
+    <text x="85" y="118" class="node-copy">Hard drift cap</text>
+  </g>
+
+  <g transform="translate(602 358)">
+    <rect width="170" height="144" rx="12" class="node cond"/>
+    <circle cx="23" cy="23" r="14" class="number-core0"/>
+    <text x="23" y="23" class="number-text">7</text>
+    <text x="85" y="53" class="node-title">One-euro filter</text>
+    <text x="85" y="80" class="node-copy">Stable at rest</text>
+    <text x="85" y="99" class="node-copy">Cutoff opens during</text>
+    <text x="85" y="118" class="node-copy">fast contact motion</text>
+  </g>
+
+  <g transform="translate(416 358)">
+    <rect width="170" height="144" rx="12" class="node cond"/>
+    <circle cx="23" cy="23" r="14" class="number-core0"/>
+    <text x="23" y="23" class="number-text">8</text>
+    <text x="85" y="53" class="node-title">Sigma + hysteresis</text>
+    <text x="85" y="80" class="node-copy">Per-taxel noise floors</text>
+    <text x="85" y="99" class="node-copy">Separate on and off</text>
+    <text x="85" y="118" class="node-copy">thresholds</text>
+  </g>
+
+  <g transform="translate(230 358)">
+    <rect width="170" height="144" rx="12" class="node cond"/>
+    <circle cx="23" cy="23" r="14" class="number-core0"/>
+    <text x="23" y="23" class="number-text">9</text>
+    <text x="85" y="53" class="node-title">Debounce + despeckle</text>
+    <text x="85" y="80" class="node-copy">Frame persistence gate</text>
+    <text x="85" y="99" class="node-copy">Remove only isolated</text>
+    <text x="85" y="118" class="node-copy">four-neighbour cells</text>
+  </g>
+
+  <g transform="translate(44 358)">
+    <rect width="170" height="144" rx="12" class="node cond"/>
+    <circle cx="23" cy="23" r="14" class="number-core0"/>
+    <text x="23" y="23" class="number-text">10</text>
+    <text x="85" y="53" class="node-title">Components + gate</text>
+    <text x="85" y="80" class="node-copy">Area, force, peak,</text>
+    <text x="85" y="99" class="node-copy">centroid + bounds</text>
+    <text x="85" y="118" class="node-copy">Reject incoherent blobs</text>
+  </g>
+
+  <path d="M 974 430 H 968" class="arrow"/>
+  <path d="M 788 430 H 782" class="arrow"/>
+  <path d="M 602 430 H 596" class="arrow"/>
+  <path d="M 416 430 H 410" class="arrow"/>
+  <path d="M 230 430 H 224" class="arrow"/>
+
+  <path d="M 129 502 V 563" class="arrow"/>
+  <rect x="44" y="574" width="1100" height="62" rx="13" class="output"/>
+  <text x="594" y="600" class="output-title">Conditioned output</text>
+  <text x="594" y="622" class="output-copy">16×32 pressure map · accepted and rejected contacts · baseline, timing, and health telemetry</text>
+</svg>

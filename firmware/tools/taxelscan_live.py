@@ -56,6 +56,7 @@ FF_COND = 0x02
 FF_DARKREF = 0x04
 FF_SIGMA = 0x08
 FF_TARE_SUSPECT = 0x10
+FF_RAW = 0x20
 
 _CRC_TAB = [0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,
             0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF]
@@ -491,6 +492,18 @@ PAGE = r"""<!doctype html>
     <div style="margin-top:6px">
       <button data-cmd="o cond 1">pipeline on</button>
       <button data-cmd="o cond 0">pipeline off</button>
+    <button data-cmd="o raw 1">raw (no conditioning)</button>
+    <button data-cmd="o raw 0">raw off</button>
+    <h2 style="margin-top:16px">Sensitivity</h2>
+    <button data-cmd="o sens 0">0 strict</button>
+    <button data-cmd="o sens 1">1 default</button>
+    <button data-cmd="o sens 2">2 sensitive</button>
+    <button data-cmd="o sens 3">3 max</button>
+    <div class="hint">Moves minon, minoff, minarea, minsum and the debounce as a
+      group. Level 3 accepts single taxels and turns speck removal off, so it
+      shows everything the sensor can see. Measured false positive rate on an
+      untouched mat was zero at all four levels on the bench, but that was a
+      bench. Re-check with the arm powered before running at 2 or 3.</div>
       <button data-cmd="o darkref 1">darkref on</button>
       <button data-cmd="o darkref 0">darkref off</button>
     </div>
@@ -761,7 +774,7 @@ es.onmessage=e=>{
   setStat('desync',m.desync,m.desync>0?'bad':'');
   setStat('badcrc',m.badcrc,m.badcrc>0?'bad':'');
   setStat('stalls',m.stalls||0,(m.stalls>0)?'warn':'');
-  setStat('tCond',(m.flags&2)?'on':'OFF',(m.flags&2)?'':'warn');
+  setStat('tCond',(m.flags&32)?'RAW':((m.flags&2)?'on':'OFF'),(m.flags&34)?((m.flags&32)?'bad':''):'warn');
   setStat('tGate',(m.flags&1)?'on':'off');
   setStat('tDark',(m.flags&4)?'on':'OFF',(m.flags&4)?'':'warn');
   setStat('tSig',(m.flags&8)?'measured':'default',(m.flags&8)?'':'warn');
@@ -782,7 +795,10 @@ es.onmessage=e=>{
 
   const b=document.getElementById('banner');
   let msg='';
-  if(m.flags&16)
+  if(m.flags&32)
+    msg='Conditioning is bypassed (o raw). This is the unfiltered signal: no baseline, '+
+        'no filtering, no contact detection. Set "o raw 0" to return to normal.';
+  else if(m.flags&16)
     msg='The startup tare looked loaded - something may have been pressing on the '+
         'mat when it powered up. That pressure is now the definition of zero, so the '+
         'sensor is BLIND to it until it is removed. Clear the mat and press tare.';

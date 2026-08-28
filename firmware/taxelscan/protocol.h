@@ -53,6 +53,9 @@ static const uint8_t FF_SIGMA   = 0x08;   // per-taxel sigma is characterised
 // when it powered up, in which case that pressure is now the definition of zero
 // and the sensor is blind to it. The host must be able to see this.
 static const uint8_t FF_TARE_SUSPECT = 0x10;
+// Conditioning is bypassed. Without this the host cannot tell a clean sensor
+// from an unfiltered one, since both can look quiet.
+static const uint8_t FF_RAW = 0x20;
 extern bool tareSuspect;
 
 struct __attribute__((packed)) FrameTrailer {
