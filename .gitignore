@@ -53,3 +53,9 @@ drc_routed.rpt
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# sim build artefacts
+firmware/sim/obj/
+firmware/sim/sim
+firmware/sim/sim-fixed
+firmware/sim/*.exe

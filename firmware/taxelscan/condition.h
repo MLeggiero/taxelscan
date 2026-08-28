@@ -59,6 +59,35 @@
 #include <Arduino.h>
 #include "scan.h"
 
+/*
+ * One-euro arithmetic: fixed point (1) or float (0). FLOAT IS THE DEFAULT, and
+ * that is a measured result rather than an assumption - it went the other way
+ * from what the v2 plan expected.
+ *
+ * Removing the per-taxel VDIV.F32 looked like the obvious win for the
+ * multi-sensor build. It is not, on any core with a hardware FPU. Counting the
+ * instructions the stage actually compiles to (tools/armcycles.sh, which
+ * cross-compiles this file and attributes each instruction to its source line):
+ *
+ *     core          float           fixed          verdict
+ *     Cortex-M33    ~66 cycles      ~130 cycles    fixed is 2x WORSE
+ *     Cortex-M7     ~80 cycles      ~92 cycles     fixed is ~15% worse
+ *
+ * VDIV.F32 costs 14 cycles and does not pipeline, but the integer replacement
+ * needs three 64-bit multiply-shift chains to hold the intermediate ranges, and
+ * those cost more than the divide they save. The FPU is simply the right tool
+ * on these parts.
+ *
+ * The fixed path is kept, and kept proven equivalent, for two reasons: it is
+ * the evidence for this decision, and it is ready if the target ever loses its
+ * FPU. `make compare` in sim/ runs both builds against each other - they agree
+ * to within one count of output rounding, with identical gating decisions on
+ * every frame.
+ */
+#ifndef TAXEL_EURO_FIXED
+#define TAXEL_EURO_FIXED 0
+#endif
+
 static const int MAX_CONTACTS = 32;
 
 struct __attribute__((packed)) Contact {
@@ -125,6 +154,21 @@ struct CondCfg {
 };
 extern CondCfg cc;
 
+/*
+ * Telemetry is PER MAT.
+ *
+ * It was one frame-global accumulator when there was one mat, and summing
+ * eight mats into it would quietly destroy the thing it is most useful for:
+ * telling which mat is misbehaving. A sensor whose baseline is walking or
+ * whose specks are piling up is invisible inside a total.
+ *
+ * It also makes the mats testable. The claim that they are independent is
+ * checked by running mat 0 alone and then alongside seven busy neighbours and
+ * requiring its output to be identical - and a shared counter fails that by
+ * construction, whether or not anything is actually wrong.
+ *
+ * condUs is the exception and belongs to the frame, not to any one mat.
+ */
 struct CondTelem {
   uint16_t adapted;      // taxels whose baseline moved this frame
   uint16_t frozen;       // taxels held because they or a neighbour are active
@@ -133,22 +177,34 @@ struct CondTelem {
   uint16_t suppressed;   // isolated specks removed
   uint16_t activeCells;
   int16_t  peak;
-  uint32_t condUs;       // how long this pipeline took - core 0's share
+  uint32_t condUs;       // frame-level, stamped into [0]; see above
 };
-extern CondTelem ctel;
+extern CondTelem ctel[MAX_SENSORS];
 
-extern int16_t  outMap[MAX_TAXELS];      // conditioned, optionally gated
-extern int16_t  filtMap[MAX_TAXELS];     // conditioned, never gated
-extern Contact  contacts[MAX_CONTACTS];
-extern uint8_t  nContacts;               // entries in contacts[], accepted first
-extern uint8_t  nRejected;               // how many of those failed the gate
-extern uint16_t sigmaQ4[MAX_TAXELS];     // per-taxel noise, counts in Q4
+// Frame totals across every enabled mat, for the status pixel and `T`.
+CondTelem condTelemAll(void);
+
+extern int16_t  outMap [MAX_ALL_TAXELS]; // conditioned, optionally gated
+extern int16_t  filtMap[MAX_ALL_TAXELS]; // conditioned, never gated
+// Contacts are scoped to the mat they were found on: a blob never spans two
+// surfaces, so labelling and the id space are per sensor - which is also what
+// keeps the label arrays one mat's worth instead of growing with sensor count.
+extern Contact  contacts [MAX_SENSORS][MAX_CONTACTS];
+extern uint8_t  nContacts[MAX_SENSORS];  // entries in contacts[s], accepted first
+extern uint8_t  nRejected[MAX_SENSORS];  // how many of those failed the gate
+extern uint16_t sigmaQ4[MAX_ALL_TAXELS]; // per-taxel noise, counts in Q4
+
+#if TAXEL_EURO_FIXED
+// Test seam: lets the simulator sweep the shipped alphaQ16() against the float
+// formula directly, rather than against a copy of it that could drift.
+uint32_t condAlphaQ16Test(uint32_t xQ16);
+#endif
 
 void condInit(void);
 void condReset(void);                            // clear filter and baseline state
-void condSeedBaseline(const int16_t *dr);        // adopt this frame as the tare
+void condSeedBaseline(int s, const int16_t *dr); // adopt this frame as the tare
 void condProcess(const int16_t *dr, float dt);   // run the pipeline
-int32_t condBaseline(int r, int c);              // for the `B` dump
+int32_t condBaseline(int s, int r, int c);       // for the `B` dump
 void    condSigmaDefault(uint16_t q4);
 
 /*
@@ -172,7 +228,7 @@ bool condRefValid(void);
 void condRefAdopt(void);      // make the current tare the stored reference
 // Compare this boot's tare against the stored reference. Returns the number of
 // taxels more than `thresh` counts above it; fills the worst delta and index.
-int  condRefCompare(int thresh, int *maxDelta, int *worstIdx);
+int  condRefCompare(int s, int thresh, int *maxDelta, int *worstIdx);
 // No stored reference: fall back to the array's own shape. A mat at rest is
 // fairly uniform, so taxels far above the median are the suspicious ones.
-int  condTareOutliers(int thresh, int *maxDelta, int *worstIdx, int *medianOut);
+int  condTareOutliers(int s, int thresh, int *maxDelta, int *worstIdx, int *medianOut);
