@@ -148,11 +148,15 @@ manufacture a false contact.
 ## Repository layout
 
 ```
-board/           KiCad project: schematic, PCB, gerbers, BOM
-fork-adapter/    KiCad project: passive adapter for two-finger use
-firmware/        Firmware, host tools, native simulator
+boards/rev1/         KiCad project: the shipped single-sensor reader
+boards/fork-adapter/ KiCad project: passive adapter for two-finger use
+boards/v2-module/    KiCad project: front-end module for the 8-mat reader
+boards/v2-hub/       the hub the modules plug into - not started
+libraries/           symbol and footprint libraries shared between boards
+firmware/            Firmware, host tools, native simulator
 ```
 
+- [boards/README.md](boards/README.md) covers what each board is and its state.
 - [firmware/README.md](firmware/README.md) covers the board, the conditioning
   pipeline, bring-up diagnostics, tuning and the wire protocol.
 - [firmware/tools/README.md](firmware/tools/README.md) covers the live viewer,

@@ -30,7 +30,7 @@ from kiutils.items.common import Position, Property, Effects, Font
 from kiutils.items.schitems import GlobalLabel, Connection, SchematicSymbol
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REV1 = os.path.join(HERE, "../../board/taxelscan.kicad_sch")
+REV1 = os.path.join(HERE, "../rev1/taxelscan.kicad_sch")
 OUT = os.path.join(HERE, "module.kicad_sch")
 
 # Which side of the split ground each component's return belongs on. The 595s

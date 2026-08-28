@@ -21,7 +21,7 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REV1 = os.path.join(HERE, "../../board/outputs/sch_final.net")
+REV1 = os.path.join(HERE, "../rev1/outputs/sch_final.net")
 
 # ---------------------------------------------------------------- rev-1 input
 def load_rev1():

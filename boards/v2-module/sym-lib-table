@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "FlexiTac")(type "KiCad")(uri "${KIPRJMOD}/../../libraries/FlexiTac.kicad_sym")(options "")(descr "Shared: FlexiTac symbols"))
+)

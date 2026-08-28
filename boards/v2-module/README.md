@@ -7,7 +7,7 @@ wiring. It can be bench-tested against a XIAO RP2350 running rev-1 firmware
 before the hub exists.
 
 `module.net` is generated, not drawn: `./gen_module.py` transforms rev-1's
-exported netlist (`board/outputs/sch_final.net`) and applies the changes below.
+exported netlist (`../rev1/outputs/sch_final.net`) and applies the changes below.
 For a circuit already measured on hardware, deriving from the proven netlist
 beats retyping pin numbers out of datasheets, and it makes the deltas the diff
 a reviewer actually reads. Every claim in this file is asserted in the
@@ -96,6 +96,15 @@ back 85/87, because C9 (the bulk cap) had been moved to ROW_VCC in `module.net`
 but left on the analog rail by the schematic transform.
 
 `module.pdf` is the rendered sheet, for looking at without KiCad installed.
+
+### Opening it
+
+    boards/v2-module/module.kicad_pro
+
+KiCad 8 or newer will offer to upgrade the file format on open; that is
+expected. The only non-stock library it needs is `FlexiTac`, which lives in
+`../../libraries/` and is wired up in this project's `fp-lib-table` and
+`sym-lib-table` — everything else ships with KiCad.
 
 ## Still to do
 
