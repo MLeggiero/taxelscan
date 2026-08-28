@@ -28,7 +28,8 @@ void emitBinV2(void) {
   const int nc = nCols();
   const int nr = cfg.rows;
   const size_t mapBytes = (size_t)nr * nc * 2;
-  const size_t conBytes = (size_t)nContacts * sizeof(Contact);
+  // TODO(protocol v3): carry all mats. Until then this frames sensor 0.
+  const size_t conBytes = (size_t)nContacts[0] * sizeof(Contact);
   const size_t payload  = mapBytes + conBytes + sizeof(FrameTrailer);
 
   if (22 + payload + 2 > sizeof(txbuf)) return;    // cannot happen at MAX_*
@@ -54,8 +55,8 @@ void emitBinV2(void) {
   h[12] = (uint8_t)(per >> 16); h[13] = (uint8_t)(per >> 24);
   h[14] = (uint8_t)telem.dieTempRaw; h[15] = (uint8_t)(telem.dieTempRaw >> 8);
   h[16] = (uint8_t)telem.railRaw;    h[17] = (uint8_t)(telem.railRaw >> 8);
-  h[18] = nContacts;
-  h[19] = nRejected;
+  h[18] = nContacts[0];
+  h[19] = nRejected[0];
   uint16_t hc = crc16(h, 20);
   h[20] = (uint8_t)hc; h[21] = (uint8_t)(hc >> 8);
 
@@ -71,15 +72,15 @@ void emitBinV2(void) {
   if (conBytes) { memcpy(p, contacts, conBytes); p += conBytes; }
 
   FrameTrailer tr;
-  tr.adapted     = ctel.adapted;
-  tr.frozen      = ctel.frozen;
-  tr.released    = ctel.released;
-  tr.capped      = ctel.capped;
-  tr.suppressed  = ctel.suppressed;
-  tr.activeCells = ctel.activeCells;
+  tr.adapted     = ctel[0].adapted;
+  tr.frozen      = ctel[0].frozen;
+  tr.released    = ctel[0].released;
+  tr.capped      = ctel[0].capped;
+  tr.suppressed  = ctel[0].suppressed;
+  tr.activeCells = ctel[0].activeCells;
   tr.overruns    = telem.overruns;
   tr.scanUs      = telem.scanUs;
-  tr.condUs      = ctel.condUs;
+  tr.condUs      = ctel[0].condUs;
   tr.emitUs      = lastEmitUs;
   memcpy(p, &tr, sizeof(tr)); p += sizeof(tr);
 

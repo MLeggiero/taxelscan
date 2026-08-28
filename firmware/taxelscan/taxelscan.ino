@@ -144,7 +144,7 @@ static void ledUpdate(int peak) {
 
   LedState s;
   if      (ovrRecent)     s = LED_OVERRUN;
-  else if (ctel.capped)   s = LED_CAPPED;
+  else if (ctel[0].capped)   s = LED_CAPPED;
   else if (tareSuspect)   s = LED_SUSPECT;
   else                    s = lvl ? LED_CONTACT : LED_IDLE;
 
@@ -155,9 +155,9 @@ static void ledUpdate(int peak) {
 // so a leftover speck can never light the pixel.
 static int gatedPeak() {
   int p = 0;
-  for (int i = 0; i < nContacts; i++)
-    if ((contacts[i].flags & CF_ACCEPTED) && contacts[i].peak > p)
-      p = contacts[i].peak;
+  for (int i = 0; i < nContacts[0]; i++)
+    if ((contacts[0][i].flags & CF_ACCEPTED) && contacts[0][i].peak > p)
+      p = contacts[0][i].peak;
   return p;
 }
 
@@ -207,7 +207,7 @@ static void resumeIfPaused(char cmd) {
 static void emitText(uint32_t us) {
   Serial.printf("# frame %ux%u  %lu us  %.1f fps  peak %d  active %u  contacts %u (%u rejected)\n",
                 cfg.rows, nCols(), (unsigned long)us, 1e6f / (float)us,
-                ctel.peak, ctel.activeCells, nContacts - nRejected, nRejected);
+                ctel[0].peak, ctel[0].activeCells, nContacts[0] - nRejected[0], nRejected[0]);
   Serial.print("     ");
   for (int c = 0; c < nCols(); c++) Serial.printf("%5d", c);
   Serial.println();
@@ -216,8 +216,8 @@ static void emitText(uint32_t us) {
     for (int c = 0; c < nCols(); c++) Serial.printf("%5d", valueAt(r, c));
     Serial.println();
   }
-  for (int i = 0; i < nContacts; i++) {
-    const Contact &k = contacts[i];
+  for (int i = 0; i < nContacts[0]; i++) {
+    const Contact &k = contacts[0][i];
     Serial.printf("# contact %-2u %s area %-3u sum %-7ld peak %-5d at r%u c%u "
                   "centroid r%.2f c%.2f  bbox r%u-%u c%u-%u%s\n",
                   k.id, (k.flags & CF_ACCEPTED) ? "OK      " : "REJECTED",
@@ -226,9 +226,9 @@ static void emitText(uint32_t us) {
                   k.r0, k.r1, k.c0, k.c1,
                   (k.flags & CF_EDGE_LIVE) ? "  edge-live" : "");
   }
-  if (ctel.capped)
+  if (ctel[0].capped)
     Serial.printf("# WARNING %u taxels pinned at the drift cap - baseline cannot "
-                  "follow any further, a phantom may return there\n", ctel.capped);
+                  "follow any further, a phantom may return there\n", ctel[0].capped);
 }
 
 static void emitCsv() {
@@ -270,7 +270,7 @@ static void tare(uint8_t n = 32, uint8_t warm = 8) {
   static int16_t avg[MAX_ROWS][MAX_COLS];
   for (int r = 0; r < cfg.rows; r++)
     for (int c = 0; c < nCols(); c++) avg[r][c] = (int16_t)(acc[r][c] / n);
-  condSeedBaseline(&avg[0][0]);
+  condSeedBaseline(0, &avg[0][0]);
   Serial.printf("# tared over %u frames; drift cap set at tare + %u counts\n",
                 n, cc.maxDrift);
 }
@@ -302,8 +302,8 @@ static void checkTareLoaded() {
   int worst = 0, wi = -1, med = 0, n = 0;
   bool usedRef = condRefValid();
 
-  if (usedRef) n = condRefCompare(thresh, &worst, &wi);
-  else         n = condTareOutliers(thresh, &worst, &wi, &med);
+  if (usedRef) n = condRefCompare(0, thresh, &worst, &wi);
+  else         n = condTareOutliers(0, thresh, &worst, &wi, &med);
 
   tareSuspect = (n > 0);
   if (!tareSuspect) {
@@ -913,7 +913,7 @@ static void baselineDump() {
   Serial.println();
   for (int r = 0; r < cfg.rows; r++) {
     Serial.printf("r%-3d ", r);
-    for (int c = 0; c < nCols(); c++) Serial.printf("%6ld", (long)condBaseline(r, c));
+    for (int c = 0; c < nCols(); c++) Serial.printf("%6ld", (long)condBaseline(0, r, c));
     Serial.println();
   }
   Serial.println(F("# --- sigma map (counts) ---"));

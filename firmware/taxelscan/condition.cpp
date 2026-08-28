@@ -10,36 +10,75 @@
 #include <math.h>
 
 CondCfg   cc;
-CondTelem ctel;
+CondTelem ctel[MAX_SENSORS];
 
-int16_t  outMap [MAX_TAXELS];
-int16_t  filtMap[MAX_TAXELS];
-Contact  contacts[MAX_CONTACTS];
-uint8_t  nContacts = 0;
-uint8_t  nRejected = 0;
-uint16_t sigmaQ4[MAX_TAXELS];
+int16_t  outMap [MAX_ALL_TAXELS];
+int16_t  filtMap[MAX_ALL_TAXELS];
+Contact  contacts [MAX_SENSORS][MAX_CONTACTS];
+uint8_t  nContacts[MAX_SENSORS] = {0};
+uint8_t  nRejected[MAX_SENSORS] = {0};
+uint16_t sigmaQ4[MAX_ALL_TAXELS];
 
 // ---------------------------------------------------------------- state
-static int32_t  baseQ8 [MAX_TAXELS];     // baseline, Q8
-static int16_t  tare0  [MAX_TAXELS];     // boot tare - the drift cap hangs off this
-static int16_t  hist   [3][MAX_TAXELS];  // temporal median ring
+static int32_t  baseQ8 [MAX_ALL_TAXELS];     // baseline, Q8
+static int16_t  tare0  [MAX_ALL_TAXELS];     // boot tare - the drift cap hangs off this
+static int16_t  hist   [3][MAX_ALL_TAXELS];  // temporal median ring
 static uint8_t  histPos = 0;
 static bool     histFull = false;
-static float    xhat   [MAX_TAXELS];     // one-euro state
-static float    dxhat  [MAX_TAXELS];
-static int16_t  prevIn [MAX_TAXELS];     // raw derivative reference
-static int16_t  prevFilt[MAX_TAXELS];
-static uint16_t varEma [MAX_TAXELS];     // EMA of |frame-to-frame|, Q4
-static uint8_t  onCnt  [MAX_TAXELS];
-static uint8_t  offCnt [MAX_TAXELS];
-static uint8_t  flags  [MAX_TAXELS];     // bit0 active, bit1 releasable, bit2 capped
-static uint32_t stuckN [MAX_TAXELS];     // consecutive active frames
+#if TAXEL_EURO_FIXED
+static int32_t  xhatQ8 [MAX_ALL_TAXELS];     // one-euro state, Q8 counts
+static int32_t  dhatQ8 [MAX_ALL_TAXELS];     // EMA of frame-to-frame delta, Q8 counts
+#else
+static float    xhat   [MAX_ALL_TAXELS];     // one-euro state
+static float    dxhat  [MAX_ALL_TAXELS];
+#endif
+static int16_t  prevIn [MAX_ALL_TAXELS];     // raw derivative reference
+static int16_t  prevFilt[MAX_ALL_TAXELS];
+static uint16_t varEma [MAX_ALL_TAXELS];     // EMA of |frame-to-frame|, Q4
+static uint8_t  onCnt  [MAX_ALL_TAXELS];
+static uint8_t  offCnt [MAX_ALL_TAXELS];
+/*
+ * Activity as one bit per taxel, one uint32 per row.
+ *
+ * MAX_COLS is exactly 32, which is what makes this worth doing: connected
+ * components, despeckle and release eligibility were 53.8% of the per-taxel
+ * budget between them (tools/armstages.py), plus the halo inside the baseline
+ * stage, and all four spent it on bounds-checked per-taxel neighbour tests. In
+ * word form a neighbourhood is a shift and an OR.
+ *
+ * The bounds checks do not get reimplemented, they DISAPPEAR: shifting brings
+ * in zeros at the ends, which is exactly "outside the array is not active".
+ * Bit c is column c, so (a << 1) at bit c means "column c-1 was active" and
+ * (a >> 1) at bit c means "column c+1 was active".
+ */
+static uint32_t actBits [MAX_SENSORS][MAX_ROWS];     // live active state
+static uint32_t prevBits[MAX_ROWS];     // scratch, per sensor: frame-entry snapshot
+static uint32_t haloBits[MAX_ROWS];     // scratch, per sensor: prevBits dilated 3x3
+static uint32_t snapBits[MAX_ROWS];     // scratch, per sensor: despeckle snapshot
+static uint32_t relBits [MAX_SENSORS][MAX_ROWS];     // releasable
+static uint32_t capBits [MAX_SENSORS][MAX_ROWS];     // pinned at the drift cap
+static uint32_t stuckN [MAX_ALL_TAXELS];     // consecutive active frames
+// Scratch, rebuilt from nothing every frame, so one mat's worth is enough -
+// which is also why it is indexed by LI() below and not by IDX(): it has no
+// sensor base, and giving it one would run off the end on mat 1.
 static uint16_t label  [MAX_TAXELS];
 static bool     primed = false;
 
-static const uint8_t TF_ACTIVE    = 0x01;
-static const uint8_t TF_RELEASABLE = 0x02;
-static const uint8_t TF_CAPPED    = 0x04;
+static_assert(MAX_COLS == 32, "activity bitmaps assume one uint32 per row");
+
+static inline bool bitAt(const uint32_t *w, int r, int c) {
+  return (w[r] >> c) & 1u;
+}
+
+// MSVC builds sim/ too, and neither of these is standard before C++20.
+#if defined(_MSC_VER)
+#include <intrin.h>
+static inline int ctz32(uint32_t v) { unsigned long i; _BitScanForward(&i, v); return (int)i; }
+static inline int pop32(uint32_t v) { return (int)__popcnt(v); }
+#else
+static inline int ctz32(uint32_t v) { return __builtin_ctz(v); }
+static inline int pop32(uint32_t v) { return __builtin_popcount(v); }
+#endif
 
 static const int MAX_LABELS = 512;
 static uint16_t lparent[MAX_LABELS];
@@ -73,11 +112,20 @@ static const int CAL_END       = CAL_OFF_REF + MAX_TAXELS * 2;      // 3080
 static const uint8_t CALF_SIGMA = 0x01;
 static const uint8_t CALF_REF   = 0x02;
 
-static int16_t refTare[MAX_TAXELS];
+static int16_t refTare[MAX_ALL_TAXELS];
 static bool    refValid = false;
 
 // ---------------------------------------------------------------- helpers
-static inline int IDX(int r, int c) { return r * MAX_COLS + c; }
+/*
+ * Every per-taxel array holds all the mats end to end, so an index is the
+ * sensor's base plus the position within that mat. Relative arithmetic on the
+ * result - i - MAX_COLS for the row above, i - 1 for the column to the left -
+ * is unaffected by the base, which is what lets the pipeline below stay
+ * written against a single mat.
+ */
+static inline int SBASE(int s) { return s * MAX_TAXELS; }
+static inline int IDX(int base, int r, int c) { return base + r * MAX_COLS + c; }
+static inline int LI(int r, int c)             { return r * MAX_COLS + c; }
 
 static inline int16_t median3(int16_t a, int16_t b, int16_t c) {
   if (a > b) { int16_t t = a; a = b; b = t; }
@@ -105,6 +153,60 @@ static inline float alphaFor(float cutoff, float dt) {
   return x / (x + INV_TWO_PI);
 }
 
+#if TAXEL_EURO_FIXED
+/*
+ * The same filter in integers, because at 8192 taxels the float form does not
+ * fit the frame budget. VDIV.F32 is ~14 cycles and does not pipeline, and it is
+ * paid once per taxel on top of the int<->float conversions around it.
+ *
+ * Two changes remove it, and the first is the one that matters.
+ *
+ * TRACK THE DERIVATIVE IN COUNTS, NOT COUNTS PER SECOND. The cutoff reaches the
+ * filter only through x = cutoff*dt, so with dxhat = EMA(ddelta)/dt:
+ *
+ *     x = (fcMin + beta*|dxhat|) * dt
+ *       = fcMin*dt + beta*dt*|EMA(ddelta)|/dt
+ *       = fcMin*dt + beta*|EMA(ddelta)|
+ *
+ * dt cancels out of the derivative term entirely. That drops the invDt multiply
+ * per taxel, and it keeps the state in counts (+-8190) rather than counts per
+ * second (+-4e6), which is what lets it sit in Q8 without crowding int32.
+ *
+ * The two forms are algebraically identical while dt is constant, which is what
+ * the fixed frame cadence exists to guarantee. They differ only across a dt
+ * change - a counted overrun - where the float form's stored counts/s stays
+ * meaningful and this one's stored counts lag by one frame. Given that a dt
+ * excursion is already an exceptional event that condProcess() clamps hard, a
+ * one-frame lag in the cutoff is the cheaper of the two costs.
+ *
+ * DIVIDE IN INTEGERS. alpha = x/(x + 1/2pi) becomes one 32-bit UDIV (2-12
+ * cycles, early-terminating), computed in the complement form
+ *
+ *     alpha = 1 - k/(x + k)
+ *
+ * rather than directly. That is worth a word, because the direct form does not
+ * work in 32 bits: x/(x+k) needs the numerator pre-shifted by 16, which
+ * overflows once x exceeds 2^16, so it forces either a 64-bit divide (a helper
+ * call, ~40 cycles - the whole point was to avoid that) or a scale-and-clamp
+ * that puts a visible step in alpha where the clamp bites. In the complement
+ * form the numerator is the CONSTANT k<<16 = 683540480, which cannot overflow
+ * whatever x does, so one 32-bit divide covers the entire input range exactly
+ * and there is no clamp to place.
+ */
+static const uint32_t ONE_Q16 = 65536u;
+static const uint32_t K_Q16   = 10430u;          // 1/(2*pi) in Q16
+static const uint32_t K_NUM   = K_Q16 << 16;     // fits 32 bits: 6.8e8 < 4.3e9
+static const uint32_t X_CAP_Q16 = 1u << 28;      // x = 4096; alpha = 0.99996
+
+static inline uint32_t alphaQ16(uint32_t xQ16) {
+  // Matches alphaFor()'s guard: a non-positive cutoff means "do not smooth".
+  if (xQ16 == 0) return ONE_Q16;
+  return ONE_Q16 - (K_NUM / (xQ16 + K_Q16));
+}
+
+uint32_t condAlphaQ16Test(uint32_t xQ16) { return alphaQ16(xQ16); }
+#endif
+
 void condSigmaDefault(uint16_t q4) {
   for (int i = 0; i < MAX_TAXELS; i++) sigmaQ4[i] = q4;
 }
@@ -119,41 +221,58 @@ void condReset(void) {
   memset(baseQ8, 0, sizeof(baseQ8));
   memset(tare0,  0, sizeof(tare0));
   memset(hist,   0, sizeof(hist));
+#if TAXEL_EURO_FIXED
+  memset(xhatQ8, 0, sizeof(xhatQ8));
+  memset(dhatQ8, 0, sizeof(dhatQ8));
+#else
   memset(xhat,   0, sizeof(xhat));
   memset(dxhat,  0, sizeof(dxhat));
+#endif
   memset(prevIn, 0, sizeof(prevIn));
   memset(prevFilt, 0, sizeof(prevFilt));
   memset(varEma, 0, sizeof(varEma));
   memset(onCnt,  0, sizeof(onCnt));
   memset(offCnt, 0, sizeof(offCnt));
-  memset(flags,  0, sizeof(flags));
+  memset(actBits,  0, sizeof(actBits));
+  memset(prevBits, 0, sizeof(prevBits));
+  memset(haloBits, 0, sizeof(haloBits));
+  memset(snapBits, 0, sizeof(snapBits));
+  memset(relBits,  0, sizeof(relBits));
+  memset(capBits,  0, sizeof(capBits));
   memset(stuckN, 0, sizeof(stuckN));
   memset(label,  0, sizeof(label));
   memset(outMap, 0, sizeof(outMap));
   memset(filtMap, 0, sizeof(filtMap));
   histPos = 0; histFull = false; primed = false;
-  nContacts = 0; nRejected = 0;
+  memset(nContacts, 0, sizeof(nContacts));
+  memset(nRejected, 0, sizeof(nRejected));
   memset(&ctel, 0, sizeof(ctel));
 }
 
-void condSeedBaseline(const int16_t *dr) {
+void condSeedBaseline(int s, const int16_t *dr) {
+  const int base = SBASE(s);
   const int nc = nCols();
   for (int r = 0; r < cfg.rows; r++)
     for (int c = 0; c < nc; c++) {
-      int i = IDX(r, c);
+      int i = IDX(base, r, c);
       baseQ8[i] = (int32_t)dr[i] << 8;
       tare0[i]  = dr[i];
       stuckN[i] = 0;
-      flags[i]  = 0;
+      const uint32_t m = 1u << c;
+      actBits[s][r] &= ~m; relBits[s][r] &= ~m; capBits[s][r] &= ~m;
       onCnt[i] = offCnt[i] = 0;
+#if TAXEL_EURO_FIXED
+      xhatQ8[i] = 0; dhatQ8[i] = 0;
+#else
       xhat[i] = 0.0f; dxhat[i] = 0.0f;
+#endif
       prevIn[i] = dr[i]; prevFilt[i] = 0;
       varEma[i] = 0;
     }
   primed = true;
 }
 
-int32_t condBaseline(int r, int c) { return baseQ8[IDX(r, c)] >> 8; }
+int32_t condBaseline(int s, int r, int c) { return baseQ8[IDX(SBASE(s), r, c)] >> 8; }
 
 // ---------------------------------------------------------------- union-find
 static uint16_t lfind(uint16_t x) {
@@ -166,10 +285,34 @@ static void lunion(uint16_t a, uint16_t b) {
 }
 
 // ---------------------------------------------------------------- pipeline
+/*
+ * Per-frame constants, computed once and handed to every mat.
+ *
+ * These depend only on dt and the option table, so recomputing them per sensor
+ * would be eight times the float work for eight identical answers - and worse,
+ * would invite the eight mats to drift apart if one of them ever saw a
+ * different dt.
+ */
+struct FrameConst {
+  float    dt;
+  int32_t  fallStep, riseStep, relStep;
+  uint32_t stuckLimit;
+  float    ad;
+  uint32_t colMask;
+#if TAXEL_EURO_FIXED
+  uint32_t adQ16, betaQ16, fcMinDtQ16;
+#else
+  float    invDt;
+#endif
+};
+
+static void condProcessOne(int s, const int16_t *dr, const FrameConst &fc);
+
 void condProcess(const int16_t *dr, float dt) {
   const uint32_t t_enter = micros();
   const int nc   = nCols();
   const int nrow = cfg.rows;
+  (void)nrow;
   // Clamped, not merely defaulted. dt scales every baseline step and sets every
   // filter cutoff, so a wild value - a resumed pause, a stalled host, a frame
   // that overran badly - must not be allowed to move the baseline by seconds'
@@ -207,19 +350,26 @@ void condProcess(const int16_t *dr, float dt) {
 
   // Passthrough mode: baseline subtraction only. Kept because A/B against the
   // full pipeline is the only way to attribute an improvement to it.
+  //
+  // It returns before the median history is written, which is deliberate: a
+  // frame that skipped the pipeline has no business seeding the filter that
+  // the next one will run.
   if (!cc.enable) {
-    ctel.peak = 0; ctel.activeCells = 0;
-    for (int r = 0; r < nrow; r++)
-      for (int c = 0; c < nc; c++) {
-        int i = IDX(r, c);
-        int32_t v = dr[i] - (baseQ8[i] >> 8);
-        if (v >  32767) v =  32767;
-        if (v < -32768) v = -32768;
-        filtMap[i] = outMap[i] = (int16_t)v;
-        if (v > ctel.peak) ctel.peak = (int16_t)v;
-      }
-    nContacts = nRejected = 0;
-    ctel.condUs = micros() - t_enter;
+    for (int s = 0; s < cfg.sensors; s++) {
+      if (!(cfg.sensorMask & (1u << s))) continue;
+      const int base = SBASE(s);
+      for (int r = 0; r < nrow; r++)
+        for (int c = 0; c < nc; c++) {
+          int i = IDX(base, r, c);
+          int32_t v = dr[i] - (baseQ8[i] >> 8);
+          if (v >  32767) v =  32767;
+          if (v < -32768) v = -32768;
+          filtMap[i] = outMap[i] = (int16_t)v;
+          if (v > ctel[s].peak) ctel[s].peak = (int16_t)v;
+        }
+      nContacts[s] = nRejected[s] = 0;
+    }
+    ctel[0].condUs = micros() - t_enter;
     return;
   }
 
@@ -234,22 +384,86 @@ void condProcess(const int16_t *dr, float dt) {
   const int32_t relStep  = (int32_t)(cc.releaseRate * dt * 256.0f) + 1;
   const uint32_t stuckLimit = (uint32_t)(cc.stuckSecs / (dt > 0 ? dt : 0.025f));
   const float ad = alphaFor(cc.dCutoff, dt);
+#if TAXEL_EURO_FIXED
+  // Hoisted once per frame, so the float arithmetic here costs nothing per
+  // taxel. ad comes from alphaFor() unchanged, which keeps the derivative
+  // EMA's rate bit-comparable with the float build.
+  const uint32_t adQ16       = (uint32_t)(ad * 65536.0f);
+  const uint32_t betaQ16     = (uint32_t)(cc.beta * 65536.0f);
+  const uint32_t fcMinDtQ16  = (uint32_t)(cc.fcMin * dt * 65536.0f);
+#else
   const float invDt = 1.0f / dt;      // hoisted: was a divide per taxel
+#endif
 
-  ctel.adapted = ctel.frozen = ctel.released = ctel.capped = 0;
-  ctel.suppressed = 0; ctel.activeCells = 0; ctel.peak = 0;
+  FrameConst fc;
+  fc.dt = dt; fc.fallStep = fallStep; fc.riseStep = riseStep; fc.relStep = relStep;
+  fc.stuckLimit = stuckLimit; fc.ad = ad;
+  // Bits above nc-1 are never set, but masking anyway keeps a geometry change
+  // that shrinks nc from leaving stale activity in the high bits.
+  fc.colMask = (nc >= 32) ? 0xFFFFFFFFu : ((1u << nc) - 1u);
+#if TAXEL_EURO_FIXED
+  fc.adQ16 = adQ16; fc.betaQ16 = betaQ16; fc.fcMinDtQ16 = fcMinDtQ16;
+#else
+  fc.invDt = invDt;
+#endif
+
+  // Every mat walks the same rows at the same instant, so they are conditioned
+  // in the same frame - but each is an independent surface and nothing crosses
+  // between them. A mat with nothing on it costs one test and a `continue`,
+  // which skips connected components, the most expensive stage there is.
+  for (int s = 0; s < cfg.sensors; s++) {
+    if (!(cfg.sensorMask & (1u << s))) continue;
+    condProcessOne(s, dr, fc);
+  }
+  ctel[0].condUs = micros() - t_enter;
+}
+
+static void condProcessOne(int s, const int16_t *dr, const FrameConst &fc) {
+  const int base = SBASE(s);
+  const int nc   = nCols();
+  const int nrow = cfg.rows;
+  const int32_t fallStep = fc.fallStep, riseStep = fc.riseStep, relStep = fc.relStep;
+  const uint32_t stuckLimit = fc.stuckLimit, colMask = fc.colMask;
+#if TAXEL_EURO_FIXED
+  const uint32_t adQ16 = fc.adQ16, betaQ16 = fc.betaQ16, fcMinDtQ16 = fc.fcMinDtQ16;
+#else
+  const float dt = fc.dt, ad = fc.ad, invDt = fc.invDt;
+#endif
+  // This mat's rows of persistent activity state. Everything below is written
+  // against one mat, which is what keeps the pipeline the same code it was.
+  uint32_t *const actBits = ::actBits[s];
+  uint32_t *const relBits = ::relBits[s];
+  uint32_t *const capBits = ::capBits[s];
 
   // Snapshot the latched state before anything moves. The halo test below has
   // to see one consistent frame, not a mix of this row's updated neighbours
-  // and the next row's stale ones.
-  static uint8_t actPrev[MAX_TAXELS];
-  for (int r = 0; r < nrow; r++)
-    for (int c = 0; c < nc; c++)
-      actPrev[IDX(r, c)] = (flags[IDX(r, c)] & TF_ACTIVE) ? 1 : 0;
+  // and the next row's stale ones. As words that is a 128-byte copy.
+  memcpy(prevBits, actBits, sizeof(prevBits));
+
+  // Dilate it 3x3 ONCE for the whole frame, so the per-taxel halo test below
+  // is a single bit test instead of a nine-way bounds-checked scan. Rows
+  // outside the array contribute nothing, and the column shifts bring in
+  // zeros, so neither direction needs a bounds check.
+  if (cc.haloFreeze) {
+    uint32_t wide[MAX_ROWS];
+    for (int r = 0; r < nrow; r++) {
+      uint32_t a = prevBits[r] & colMask;
+      wide[r] = (a | (a << 1) | (a >> 1)) & colMask;
+    }
+    for (int r = 0; r < nrow; r++) {
+      uint32_t h = wide[r];
+      if (r > 0)        h |= wide[r - 1];
+      if (r < nrow - 1) h |= wide[r + 1];
+      haloBits[r] = h;
+    }
+  } else {
+    // No halo: a taxel freezes only on its own account.
+    memcpy(haloBits, prevBits, sizeof(haloBits));
+  }
 
   for (int r = 0; r < nrow; r++) {
     for (int c = 0; c < nc; c++) {
-      const int i = IDX(r, c);
+      const int i = IDX(base, r, c);
 
       int16_t med = dr[i];
       if (cc.median && histFull)
@@ -259,35 +473,29 @@ void condProcess(const int16_t *dr, float dt) {
       int32_t bq = baseQ8[i];
       int32_t d  = (int32_t)med - (bq >> 8);
 
-      bool actNow = actPrev[i] != 0;
-      bool frozen = actNow;
-      if (cc.haloFreeze && !frozen) {
-        // Guarantee 1: a one-taxel halo, so a spreading contact is not
-        // nibbled at its edges while it grows.
-        for (int dr2 = -1; dr2 <= 1 && !frozen; dr2++)
-          for (int dc = -1; dc <= 1; dc++) {
-            int rr = r + dr2, ccx = c + dc;
-            if (rr < 0 || ccx < 0 || rr >= nrow || ccx >= nc) continue;
-            if (actPrev[IDX(rr, ccx)]) { frozen = true; break; }
-          }
-      }
+      const uint32_t m = 1u << c;
+      bool actNow = bitAt(prevBits, r, c);
+      // Guarantee 1: a one-taxel halo, so a spreading contact is not nibbled
+      // at its edges while it grows. haloBits already carries the dilation
+      // (and equals prevBits when the halo is off), so this is one bit test.
+      bool frozen = bitAt(haloBits, r, c);
 
       if (d < 0) {
         // Falling: fast and ungated. Too-high baselines suppress real contact,
         // which is the dangerous direction, and coming down can never eat signal.
         int32_t want = (-d) << 8;
         bq -= (want < fallStep) ? want : fallStep;
-        ctel.adapted++;
-      } else if (cc.release && (flags[i] & TF_RELEASABLE)) {
+        ctel[s].adapted++;
+      } else if (cc.release && (relBits[r] & m)) {
         int32_t want = d << 8;
         bq += (want < relStep) ? want : relStep;
-        ctel.adapted++; ctel.released++;
+        ctel[s].adapted++; ctel[s].released++;
       } else if (!frozen && d < (int32_t)cc.idleBand) {
         int32_t want = d << 8;
         bq += (want < riseStep) ? want : riseStep;
-        ctel.adapted++;
+        ctel[s].adapted++;
       } else if (frozen) {
-        ctel.frozen++;
+        ctel[s].frozen++;
       }
 
       // Guarantee 4: hard cap on cumulative upward drift. A taxel pinned here
@@ -298,33 +506,53 @@ void condProcess(const int16_t *dr, float dt) {
       // "Pinned" means it is at the cap AND still wants to climb - a taxel that
       // merely sits there is not interesting. Flagged with >= rather than >
       // because the clamp above makes the strict test true for one frame only.
-      if (bq >= capQ8 && d > 0) { flags[i] |= TF_CAPPED; ctel.capped++; }
-      else flags[i] &= (uint8_t)~TF_CAPPED;
+      if (bq >= capQ8 && d > 0) { capBits[r] |= m; ctel[s].capped++; }
+      else capBits[r] &= ~m;
       baseQ8[i] = bq;
 
       int32_t delta = (int32_t)med - (bq >> 8);
 
       // ---- stage 6: one-euro ------------------------------------------
-      float out;
+      int32_t fv;
       if (cc.euro) {
+#if TAXEL_EURO_FIXED
+        // Derivative EMA, in counts rather than counts/s - see alphaQ16().
+        int32_t dd = (delta - (int32_t)prevIn[i]) << 8;
+        dhatQ8[i] += (int32_t)(((int64_t)adQ16 * (dd - dhatQ8[i])) >> 16);
+
+        // x = fcMin*dt + beta*|dhat|. The 64-bit product is one UMULL; only a
+        // 64-bit DIVIDE would have cost anything, and there is not one here.
+        uint32_t absD = (uint32_t)(dhatQ8[i] < 0 ? -dhatQ8[i] : dhatQ8[i]);
+        uint64_t xw = (uint64_t)fcMinDtQ16 + ((((uint64_t)betaQ16 * absD)) >> 8);
+        // The ceiling only exists to keep xQ16 inside uint32 for any beta the
+        // option table allows. alpha(4096) = 0.99996, so nothing is lost.
+        uint32_t xQ16 = (xw > X_CAP_Q16) ? X_CAP_Q16 : (uint32_t)xw;
+
+        int32_t dq = (delta << 8) - xhatQ8[i];
+        xhatQ8[i] += (int32_t)(((int64_t)alphaQ16(xQ16) * dq) >> 16);
+
+        // Round half away from zero, matching the float path's +-0.5f.
+        int32_t q = xhatQ8[i];
+        fv = (q >= 0) ? ((q + 128) >> 8) : -(((-q) + 128) >> 8);
+#else
         float x  = (float)delta;
         float dx = ((float)delta - (float)prevIn[i]) * invDt;
         dxhat[i] += ad * (dx - dxhat[i]);
         float cutoff = cc.fcMin + cc.beta * fabsf(dxhat[i]);
         float a = alphaFor(cutoff, dt);
         xhat[i] += a * (x - xhat[i]);
-        out = xhat[i];
+        // Not lrintf(): that is an out-of-line veneer call, once per taxel.
+        fv = (int32_t)(xhat[i] >= 0.0f ? xhat[i] + 0.5f : xhat[i] - 0.5f);
+#endif
       } else {
-        out = (float)delta;
+        fv = delta;
       }
       prevIn[i] = (int16_t)delta;
 
-      // Not lrintf(): that is an out-of-line veneer call, once per taxel.
-      int32_t fv = (int32_t)(out >= 0.0f ? out + 0.5f : out - 0.5f);
       if (fv >  32767) fv =  32767;
       if (fv < -32768) fv = -32768;
       filtMap[i] = (int16_t)fv;
-      if (fv > ctel.peak) ctel.peak = (int16_t)fv;
+      if (fv > ctel[s].peak) ctel[s].peak = (int16_t)fv;
 
       // Frame-to-frame movement, for the edge-liveness veto on release.
       int32_t mv = fv - prevFilt[i];
@@ -345,15 +573,18 @@ void condProcess(const int16_t *dr, float dt) {
 
       if (!actNow) {
         if (fv >= sOn) {
-          if (++onCnt[i] >= cc.nOn) { flags[i] |= TF_ACTIVE; onCnt[i] = 0; offCnt[i] = 0; }
+          if (++onCnt[i] >= cc.nOn) { actBits[r] |= m; onCnt[i] = 0; offCnt[i] = 0; }
         } else onCnt[i] = 0;
       } else {
         if (fv < sOff) {
-          if (++offCnt[i] >= cc.nOff) { flags[i] &= (uint8_t)~TF_ACTIVE; offCnt[i] = 0; onCnt[i] = 0; }
+          if (++offCnt[i] >= cc.nOff) { actBits[r] &= ~m; offCnt[i] = 0; onCnt[i] = 0; }
         } else offCnt[i] = 0;
       }
 
-      if (flags[i] & TF_ACTIVE) { stuckN[i]++; ctel.activeCells++; }
+      // activeCells is counted by popcount after despeckle rather than
+      // incremented here and decremented there - one place to be wrong
+      // instead of two.
+      if (actBits[r] & m) stuckN[i]++;
       else stuckN[i] = 0;
     }
   }
@@ -363,44 +594,50 @@ void condProcess(const int16_t *dr, float dt) {
   // no active 4-neighbour is noise. This is deliberately NOT a 3x3 median,
   // which would also erase a genuinely thin contact - a probe tip, the edge of
   // a bracket. Done on a snapshot so the test is simultaneous.
-  static uint8_t actSnap[MAX_TAXELS];
   if (cc.despeckle) {
-    for (int r = 0; r < nrow; r++)
-      for (int c = 0; c < nc; c++)
-        actSnap[IDX(r, c)] = (flags[IDX(r, c)] & TF_ACTIVE) ? 1 : 0;
-    for (int r = 0; r < nrow; r++)
-      for (int c = 0; c < nc; c++) {
-        int i = IDX(r, c);
-        if (!actSnap[i]) continue;
-        int n = 0;
-        if (r > 0        && actSnap[i - MAX_COLS]) n++;
-        if (r < nrow - 1 && actSnap[i + MAX_COLS]) n++;
-        if (c > 0        && actSnap[i - 1]) n++;
-        if (c < nc - 1   && actSnap[i + 1]) n++;
-        if (n == 0) { flags[i] &= (uint8_t)~TF_ACTIVE; ctel.suppressed++; ctel.activeCells--; }
+    memcpy(snapBits, actBits, sizeof(snapBits));
+    for (int r = 0; r < nrow; r++) {
+      uint32_t a = snapBits[r] & colMask;
+      if (!a) continue;                       // whole row: nothing to test
+      uint32_t nb = (a << 1) | (a >> 1);      // left and right neighbours
+      if (r > 0)        nb |= snapBits[r - 1];
+      if (r < nrow - 1) nb |= snapBits[r + 1];
+      uint32_t lonely = a & ~nb & colMask;    // active with no active neighbour
+      if (lonely) {
+        actBits[r] &= ~lonely;
+        ctel[s].suppressed += (uint16_t)pop32(lonely);
       }
+    }
   }
+
+  for (int r = 0; r < nrow; r++) ctel[s].activeCells += (uint16_t)pop32(actBits[r] & colMask);
 
   // ---- stage 10: connected components ----------------------------------
   uint16_t nextLabel = 1;
   for (int r = 0; r < nrow; r++) {
+    // A row with nothing active still needs its labels cleared, but it does
+    // not need the body. At rest that is every row.
+    if (!(actBits[r] & colMask)) {
+      memset(&label[LI(r, 0)], 0, (size_t)nc * sizeof(label[0]));
+      continue;
+    }
     for (int c = 0; c < nc; c++) {
-      int i = IDX(r, c);
-      if (!(flags[i] & TF_ACTIVE)) { label[i] = 0; continue; }
-      uint16_t up   = (r > 0) ? label[i - MAX_COLS] : 0;
-      uint16_t left = (c > 0) ? label[i - 1] : 0;
+      const int li = LI(r, c);
+      if (!(actBits[r] & (1u << c))) { label[li] = 0; continue; }
+      uint16_t up   = (r > 0) ? label[li - MAX_COLS] : 0;
+      uint16_t left = (c > 0) ? label[li - 1] : 0;
       if (!up && !left) {
         if (nextLabel < MAX_LABELS) {
           lparent[nextLabel] = nextLabel;
-          label[i] = nextLabel++;
+          label[li] = nextLabel++;
         } else {
-          label[i] = 0;               // pathological frame; treat as unlabelled
+          label[li] = 0;              // pathological frame; treat as unlabelled
         }
       } else if (up && left) {
-        label[i] = (up < left) ? up : left;
+        label[li] = (up < left) ? up : left;
         if (up != left) lunion(up, left);
       } else {
-        label[i] = up ? up : left;
+        label[li] = up ? up : left;
       }
     }
   }
@@ -412,11 +649,24 @@ void condProcess(const int16_t *dr, float dt) {
   }
 
   for (int r = 0; r < nrow; r++) {
+    // Guarantee 3 needs to know which taxels are on a blob's perimeter. A
+    // taxel is interior when all four neighbours are active, so one word of
+    // ANDs settles the whole row at once - and the shifts treat the array
+    // edge as inactive for free, which is what the old four-way bounds test
+    // was spelling out by hand.
+    uint32_t interior;
+    {
+      uint32_t a  = actBits[r] & colMask;
+      uint32_t up = (r > 0)        ? actBits[r - 1] : 0u;
+      uint32_t dn = (r < nrow - 1) ? actBits[r + 1] : 0u;
+      interior = a & up & dn & (a << 1) & (a >> 1) & colMask;
+    }
     for (int c = 0; c < nc; c++) {
-      int i = IDX(r, c);
-      if (!label[i]) continue;
-      uint16_t l = lfind(label[i]);
-      label[i] = l;
+      int i = IDX(base, r, c);
+      const int li = LI(r, c);
+      if (!label[li]) continue;
+      uint16_t l = lfind(label[li]);
+      label[li] = l;
       int32_t w = filtMap[i] > 0 ? filtMap[i] : 0;
       if (larea[l] < 65535) larea[l]++;
       lsum[l]  += filtMap[i];
@@ -431,32 +681,28 @@ void condProcess(const int16_t *dr, float dt) {
 
       // Guarantee 3: perimeter liveness. A real contact has a boundary of
       // partly loaded taxels that keep moving even when its centre is still.
-      bool perim = (r == 0 || c == 0 || r == nrow - 1 || c == nc - 1) ||
-                   !(flags[i - MAX_COLS] & TF_ACTIVE) ||
-                   !(flags[i + MAX_COLS] & TF_ACTIVE) ||
-                   !(flags[i - 1] & TF_ACTIVE) ||
-                   !(flags[i + 1] & TF_ACTIVE);
+      bool perim = !((interior >> c) & 1u);
       if (perim && varEma[i] > ledge[l]) ledge[l] = varEma[i];
     }
   }
 
   // ---- accept / reject, and build the contact list ---------------------
-  nContacts = 0; nRejected = 0;
+  nContacts[s] = 0; nRejected[s] = 0;
   for (uint16_t l = 1; l < nextLabel; l++) {
     if (lfind(l) != l || larea[l] == 0) continue;
-    if (nContacts >= MAX_CONTACTS) {
+    if (nContacts[s] >= MAX_CONTACTS) {
       // More blobs than the wire format carries - a pathological frame. They
       // stay unaccepted so the map gates them out, and they are counted into
       // `suppressed` rather than into `nRejected`, which has to keep meaning
       // "how many of the transmitted records were rejected".
       laccept[l] = 2;
-      ctel.suppressed++;
+      ctel[s].suppressed++;
       continue;
     }
     bool accept = (larea[l] >= cc.minArea) && (lsum[l] >= cc.minSum);
     laccept[l] = accept ? 1 : 2;              // 1 accepted, 2 rejected
 
-    Contact &k = contacts[nContacts++];
+    Contact &k = contacts[s][nContacts[s]++];
     k.id    = (uint8_t)l;
     k.area  = (uint8_t)(larea[l] > 255 ? 255 : larea[l]);
     k.sum   = lsum[l];
@@ -473,7 +719,7 @@ void condProcess(const int16_t *dr, float dt) {
     k.r0 = lr0[l]; k.c0 = lc0[l]; k.r1 = lr1[l]; k.c1 = lc1[l];
     k.flags = 0;
     if (ledge[l] > sigmaQ4[lpeakI[l]]) k.flags |= CF_EDGE_LIVE;
-    if (accept) k.flags |= CF_ACCEPTED; else nRejected++;
+    if (accept) k.flags |= CF_ACCEPTED; else nRejected[s]++;
     k.pad = 0;
   }
 
@@ -484,32 +730,52 @@ void condProcess(const int16_t *dr, float dt) {
   // perimeter is not alive. A 20-taxel grasp fails three of those four tests
   // no matter how long it sits there.
   for (int r = 0; r < nrow; r++) {
-    for (int c = 0; c < nc; c++) {
-      int i = IDX(r, c);
-      flags[i] &= (uint8_t)~TF_RELEASABLE;
-      if (!cc.release) continue;
-      if (!(flags[i] & TF_ACTIVE)) continue;
+    relBits[r] = 0;
+    if (!cc.release) continue;
+    // Only active taxels can be released, so walk the set bits rather than
+    // every column. At rest there are none and the row costs one test.
+    uint32_t a = actBits[r] & colMask;
+    while (a) {
+      int c = ctz32(a);
+      a &= a - 1;
+      int i = IDX(base, r, c);
       if (stuckN[i] < stuckLimit) continue;
       if (varEma[i] >= cc.stillness) continue;
-      uint16_t l = label[i];
+      uint16_t l = label[LI(r, c)];
       if (l) {
         if (larea[l] >= cc.coherentArea) continue;     // coherent blob: never
         if (ledge[l] > sigmaQ4[i]) continue;           // live perimeter: never
       }
-      flags[i] |= TF_RELEASABLE;
+      relBits[r] |= 1u << c;
     }
   }
 
   // ---- output map ------------------------------------------------------
   for (int r = 0; r < nrow; r++)
     for (int c = 0; c < nc; c++) {
-      int i = IDX(r, c);
+      int i = IDX(base, r, c);
       if (!cc.gateMap) { outMap[i] = filtMap[i]; continue; }
-      uint16_t l = label[i];
+      uint16_t l = label[LI(r, c)];
       outMap[i] = (l && laccept[l] == 1) ? filtMap[i] : 0;
     }
 
-  ctel.condUs = micros() - t_enter;
+}
+
+CondTelem condTelemAll(void) {
+  CondTelem t;
+  memset(&t, 0, sizeof(t));
+  for (int s = 0; s < cfg.sensors; s++) {
+    if (!(cfg.sensorMask & (1u << s))) continue;
+    t.adapted    += ctel[s].adapted;
+    t.frozen     += ctel[s].frozen;
+    t.released   += ctel[s].released;
+    t.capped     += ctel[s].capped;
+    t.suppressed += ctel[s].suppressed;
+    t.activeCells+= ctel[s].activeCells;
+    if (ctel[s].peak > t.peak) t.peak = ctel[s].peak;
+  }
+  t.condUs = ctel[0].condUs;
+  return t;
 }
 
 // ---------------------------------------------------------------- calibration
@@ -566,13 +832,14 @@ void condRefAdopt(void) {
   condCalSave();
 }
 
-int condRefCompare(int thresh, int *maxDelta, int *worstIdx) {
+int condRefCompare(int s, int thresh, int *maxDelta, int *worstIdx) {
+  const int base = SBASE(s);
   int n = 0, worst = -32768, wi = -1;
   if (!refValid) { if (maxDelta) *maxDelta = 0; if (worstIdx) *worstIdx = -1; return 0; }
   const int nc = nCols();
   for (int r = 0; r < cfg.rows; r++)
     for (int c = 0; c < nc; c++) {
-      int i = IDX(r, c);
+      int i = IDX(base, r, c);
       int d = (int)tare0[i] - (int)refTare[i];
       if (d > worst) { worst = d; wi = i; }
       if (d > thresh) n++;
@@ -582,7 +849,8 @@ int condRefCompare(int thresh, int *maxDelta, int *worstIdx) {
   return n;
 }
 
-int condTareOutliers(int thresh, int *maxDelta, int *worstIdx, int *medianOut) {
+int condTareOutliers(int s, int thresh, int *maxDelta, int *worstIdx, int *medianOut) {
+  const int base = SBASE(s);
   const int nc = nCols();
   const int total = cfg.rows * nc;
   if (total <= 0) return 0;
@@ -590,7 +858,7 @@ int condTareOutliers(int thresh, int *maxDelta, int *worstIdx, int *medianOut) {
   static int16_t sorted[MAX_TAXELS];
   int k = 0;
   for (int r = 0; r < cfg.rows; r++)
-    for (int c = 0; c < nc; c++) sorted[k++] = tare0[IDX(r, c)];
+    for (int c = 0; c < nc; c++) sorted[k++] = tare0[IDX(base, r, c)];
   // Insertion sort: k is at most 1024 and this runs once, at boot.
   for (int a = 1; a < k; a++) {
     int16_t v = sorted[a];
@@ -604,7 +872,7 @@ int condTareOutliers(int thresh, int *maxDelta, int *worstIdx, int *medianOut) {
   int n = 0, worst = -32768, wi = -1;
   for (int r = 0; r < cfg.rows; r++)
     for (int c = 0; c < nc; c++) {
-      int i = IDX(r, c);
+      int i = IDX(base, r, c);
       int d = (int)tare0[i] - med;
       if (d > worst) { worst = d; wi = i; }
       if (d > thresh) n++;
