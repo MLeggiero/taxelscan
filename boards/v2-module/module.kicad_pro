@@ -656,9 +656,9 @@
     "subpart_id_separator": 0,
     "top_level_sheets": [
       {
-        "filename": "taxelscan.kicad_sch",
-        "name": "taxelscan",
-        "uuid": "00000000-0000-0000-0000-000000000000"
+        "filename": "module.kicad_sch",
+        "name": "module",
+        "uuid": "90da0712-cbbf-4063-ac42-49fe7a8f8635"
       }
     ],
     "used_designators": "",
@@ -666,8 +666,8 @@
   },
   "sheets": [
     [
-      "00000000-0000-0000-0000-000000000000",
-      "Root"
+      "90da0712-cbbf-4063-ac42-49fe7a8f8635",
+      "module"
     ]
   ],
   "text_variables": {},

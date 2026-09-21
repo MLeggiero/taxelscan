@@ -4,6 +4,14 @@ Firmware for the TaxelScan reader board. Scans a Velostat matrix, conditions
 it on the microcontroller, and streams a cleaned map plus a contact list over
 USB.
 
+**This directory is the rev-1 firmware, for a XIAO RP2350 module.** It must not
+be flashed to a rev-3 board: it drives GPIO22 and GPIO23, which are `ADDR2` and
+the open-drain `USB_PWR_FAULT` there, and it reads an internal ADC that rev-3
+does not use. The rev-3 firmware does not exist yet;
+[rev3/PLAN.md](rev3/PLAN.md) is the specification and the order of work for
+writing it, and [rev3_power/](rev3_power/) is the one piece of it that is
+already written and tested.
+
 | File | Contents |
 |---|---|
 | `taxelscan/taxelscan.ino` | console, bring-up diagnostics, frame loop, status pixel |

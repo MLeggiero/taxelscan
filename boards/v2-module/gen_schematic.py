@@ -8,8 +8,8 @@ is the change rather than the whole sheet.
 
     ./gen_schematic.py       writes module.kicad_sch, then checks it with KiCad
 
-Output is KiCad 7 format on purpose. kiutils writes it natively, kicad-cli 7 can
-then load it and export a netlist for checking, and KiCad 10 opens and upgrades
+Output is KiCad 7 format on purpose. kiutils writes it natively, kicad-cli
+loads it and exports a netlist to check against, and KiCad 8 or newer upgrades
 it on the way in. Generating v10 directly would mean nothing could verify it.
 
 POWER SYMBOLS BECOME GLOBAL LABELS. Partly because kiutils' round-trip does not
@@ -19,11 +19,16 @@ PWR_GND carries up to 30 mA of press-correlated row current and AGND must carry
 none, and two identical-looking ground symbols is exactly how that distinction
 gets lost at layout. Named labels put it on the sheet.
 """
+import csv
+import glob
+import io
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from kiutils.schematic import Schematic
 from kiutils.items.common import Position, Property, Effects, Font
@@ -32,6 +37,7 @@ from kiutils.items.schitems import GlobalLabel, Connection, SchematicSymbol
 HERE = os.path.dirname(os.path.abspath(__file__))
 REV1 = os.path.join(HERE, "../rev1/taxelscan.kicad_sch")
 OUT = os.path.join(HERE, "module.kicad_sch")
+BOM = os.path.join(HERE, "BOM.csv")
 
 # Which side of the split ground each component's return belongs on. The 595s
 # and the bulk/decoupling on the row rail carry row current; everything in the
@@ -43,6 +49,35 @@ PWR_GND_REFS = {"U1", "U2", "U3", "U4", "C1", "C2", "C3", "C4", "C9"}
 # must follow it, or the schematic quietly disagrees with module.net - which is
 # exactly what KiCad's netlist export caught the first time round.
 ROW_VCC_REFS = {"C9"}
+
+# Every power net needs something asserting it is driven. rev-1 had a single
+# PWR_FLAG; it left with the #FLG symbols and nothing replaced it, so all four
+# rails came back undriven the first time ERC was ever run on this sheet.
+# One flag per rail, and the two grounds each get their own.
+PWR_FLAG_NETS = ["ROW_VCC", "PWR_GND", "AVCC", "AGND"]
+
+
+def load_bom(path=BOM):
+    """ref -> (value, footprint) from BOM.csv, expanding 'U1-U4' and 'J1,J2'.
+
+    BOM.csv is the single source of truth for what each part IS: gen_module.py
+    writes it, this script applies it. The two used to agree only by hand, and
+    they did not. C9 became 22 uF on an 0805 land in the BOM while the
+    schematic kept rev-1's 10 uF on an 0603, and neither check could see it -
+    ERC does not read values, and the netlist check compares nets. Driving both
+    from one file makes that drift impossible rather than merely detectable.
+    """
+    out = {}
+    with open(path, newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            for tok in (t.strip() for t in row["Reference"].split(",")):
+                m = re.fullmatch(r"([A-Za-z#]+)(\d+)-(?:[A-Za-z#]+)?(\d+)", tok)
+                refs = ([m.group(1) + str(i)
+                         for i in range(int(m.group(2)), int(m.group(3)) + 1)]
+                        if m else ([tok] if tok else []))
+                for ref in refs:
+                    out[ref] = (row["Value"], row["Footprint"])
+    return out
 
 
 def pin_xy(sym, lib, pin):
@@ -56,6 +91,19 @@ def pin_xy(sym, lib, pin):
         py = -py
     return (sym.position.X + px * ca + py * sa,
             sym.position.Y + px * sa - py * ca)
+
+
+def unit_pins(lib, want_unit):
+    """Pins of the library units belonging to want_unit; 0 means shared."""
+    for unit in lib.units:
+        try:
+            uidx = int(unit.entryName.split("_")[-2])
+        except (ValueError, IndexError):
+            uidx = 0
+        if uidx not in (0, want_unit):
+            continue
+        for pin in unit.pins:
+            yield pin
 
 
 def label(text, x, y, angle=0):
@@ -108,15 +156,8 @@ def build():
         lib = libs.get(sym.libId)
         if lib is None:
             continue
-        for unit in lib.units:
-            try:
-                uidx = int(unit.entryName.split("_")[-2])
-            except (ValueError, IndexError):
-                uidx = 0
-            if uidx not in (0, sym.unit):
-                continue
-            for pin in unit.pins:
-                pins[pin_xy(sym, lib, pin)] = ref_of(sym)
+        for pin in unit_pins(lib, sym.unit):
+            pins[pin_xy(sym, lib, pin)] = ref_of(sym)
 
     def nearest_ref(x, y, limit=5.1):
         best, bd = None, limit
@@ -145,7 +186,8 @@ def build():
 
 
 # The new parts, and the net at each pin. Positions are chosen below the
-# existing drawing so nothing proven moves.
+# existing drawing so nothing proven moves. Value and footprint are settled
+# afterwards from BOM.csv, which is the authority on both.
 NEW_PARTS = [
     # ref,  lib,                          value,          footprint, pin->net
     ("R6",  "Device:R", "51R",  "Resistor_SMD:R_0603_1608Metric",
@@ -225,19 +267,107 @@ def place(sch, libs, lib_id, ref, value, footprint, at, pin_nets, unit=1):
                  effects=hidden),
     ]
     sch.schematicSymbols.append(sym)
-    for unit_sym in lib.units:
-        try:
-            uidx = int(unit_sym.entryName.split("_")[-2])
-        except (ValueError, IndexError):
-            uidx = 0
-        if uidx not in (0, unit):
-            continue
-        for pin in unit_sym.pins:
-            net = pin_nets.get(pin.number)
-            if net:
-                x, y = pin_xy(sym, lib, pin)
-                sch.globalLabels.append(label(net, x, y))
+    for pin in unit_pins(lib, unit):
+        net = pin_nets.get(pin.number)
+        if net:
+            x, y = pin_xy(sym, lib, pin)
+            sch.globalLabels.append(label(net, x, y))
     return sym
+
+
+def prune_dangling(sch, libs):
+    """Delete the drawing left behind by the symbols build() removed.
+
+    A1, R5 and rev-1's PWR_FLAG went away but their wires, no-connect flags
+    and labels stayed on the sheet - 19 of the 29 violations the first ERC run
+    reported, and every one of them invisible to the netlist check, because
+    debris hanging off an otherwise correct net does not change what that net
+    joins. Which is also why deleting it here is safe: check() re-exports the
+    netlist afterwards and it still has to be the same 87 nets.
+
+    Only a pin is anchored outright. A label holds if it sits on a pin or on a
+    live wire; a wire holds if both ends sit on a pin, a live label, a junction
+    or another live wire. Those two support each other, so this runs to a
+    fixpoint rather than in one pass - cutting a wire can strand the label that
+    was riding it, and cutting that label can strand the next wire along.
+    """
+    def q(x, y):
+        return (round(x, 3), round(y, 3))
+
+    pinpts = set()
+    for sym in sch.schematicSymbols:
+        lib = libs.get(sym.libId)
+        if lib is None:
+            continue
+        for pin in unit_pins(lib, sym.unit):
+            pinpts.add(q(*pin_xy(sym, lib, pin)))
+
+    junctions = {q(j.position.X, j.position.Y) for j in sch.junctions}
+
+    def touches(pt, wire):
+        (ax, ay), (bx, by) = ((p.X, p.Y) for p in wire.points[:2])
+        if q(ax, ay) == pt or q(bx, by) == pt:
+            return True
+        if abs((bx - ax) * (pt[1] - ay) - (by - ay) * (pt[0] - ax)) > 1e-6:
+            return False
+        dot = (pt[0] - ax) * (bx - ax) + (pt[1] - ay) * (by - ay)
+        return 0 <= dot <= (bx - ax) ** 2 + (by - ay) ** 2
+
+    wires = [g for g in sch.graphicalItems if isinstance(g, Connection)
+             and g.type == "wire" and len(g.points) >= 2]
+    labels = [(lst, lb) for lst in (sch.labels, sch.globalLabels,
+                                    sch.hierarchicalLabels) for lb in lst]
+    dead = set()
+    while True:
+        live_w = [w for w in wires if id(w) not in dead]
+        live_l = [(lst, lb) for lst, lb in labels if id(lb) not in dead]
+        held = pinpts | junctions | {q(lb.position.X, lb.position.Y)
+                                     for _, lb in live_l}
+        gone = {id(lb) for _, lb in live_l
+                if q(lb.position.X, lb.position.Y) not in pinpts
+                and not any(touches(q(lb.position.X, lb.position.Y), w)
+                            for w in live_w)}
+        gone |= {id(w) for w in live_w
+                 if any(q(p.X, p.Y) not in held
+                        and not any(touches(q(p.X, p.Y), o)
+                                    for o in live_w if o is not w)
+                        for p in w.points[:2])}
+        if not gone:
+            break
+        dead |= gone
+
+    nc_dead = {id(nc) for nc in sch.noConnects
+               if q(nc.position.X, nc.position.Y) not in pinpts}
+    sch.graphicalItems = [g for g in sch.graphicalItems if id(g) not in dead]
+    sch.noConnects = [nc for nc in sch.noConnects if id(nc) not in nc_dead]
+    for lst in (sch.labels, sch.globalLabels, sch.hierarchicalLabels):
+        lst[:] = [lb for lb in lst if id(lb) not in dead]
+    n_w = sum(1 for w in wires if id(w) in dead)
+    n_l = sum(1 for _, lb in labels if id(lb) in dead)
+    return n_w, n_l, len(nc_dead)
+
+
+def apply_bom(sch):
+    """Make every symbol say what BOM.csv says it is. Returns (ok, changes)."""
+    bom = load_bom()
+    absent = sorted(set(bom) - {ref_of(s) for s in sch.schematicSymbols})
+    if absent:
+        print("  BOM.csv lists parts that are not on the sheet: " + str(absent))
+        return False, []
+    changed = []
+    for sym in sch.schematicSymbols:
+        want = bom.get(ref_of(sym))
+        if not want:
+            continue
+        for prop in sym.properties:
+            if prop.key not in ("Value", "Footprint"):
+                continue
+            new = want[0] if prop.key == "Value" else want[1]
+            if prop.value != new:
+                changed.append("%s.%s: %r -> %r"
+                               % (ref_of(sym), prop.key, prop.value, new))
+                prop.value = new
+    return True, changed
 
 
 def main():
@@ -261,59 +391,161 @@ def main():
           (x + len(NEW_PARTS) * 25.4 + 25.4, y0 + 25.4),
           {str(i + 1): n for i, n in enumerate(J3_PINOUT)})
 
-    # KiCad 7 on the way out; KiCad 10 upgrades it on the way in.
+    # One PWR_FLAG per rail. They go to the right of J3 on the same row as the
+    # test points: the sheet is A1, so there is room across but almost none
+    # below - J3's twenty pins already reach within 15 mm of the bottom edge.
+    # They are annotation rather than circuit: out of the BOM, off the board,
+    # and check() ignores #-prefixed refs on both sides of every comparison.
+    flag_x = x + (len(NEW_PARTS) + 3) * 25.4
+    for i, net in enumerate(PWR_FLAG_NETS):
+        flag = place(sch, libs, "power:PWR_FLAG", "#FLG%02d" % i, "PWR_FLAG",
+                     "", (flag_x + i * 25.4, y0), {"1": net})
+        flag.inBom, flag.onBoard = False, False
+
+    gone_w, gone_l, gone_nc = prune_dangling(sch, libs)
+    ok, corrected = apply_bom(sch)
+    if not ok:
+        return 1
+
+    # KiCad 7 on the way out; KiCad 8 or newer upgrades it on the way in.
     sch.version, sch.generator = "20230121", "taxelscan_gen_schematic"
     sch.to_file(OUT)
-    print(f"wrote {os.path.relpath(OUT)}")
-    print(f"  {len(sch.schematicSymbols)} symbols, {len(sch.globalLabels)} labels")
-    print(f"  power symbols converted to labels: {renamed}")
+    print("wrote " + os.path.relpath(OUT))
+    print("  %d symbols, %d labels" % (len(sch.schematicSymbols),
+                                       len(sch.globalLabels)))
+    print("  power symbols converted to labels: " + str(renamed))
+    print("  dangling from removed parts: %d wires, %d labels, %d no-connects"
+          % (gone_w, gone_l, gone_nc))
+    if corrected:
+        print("  taken from BOM.csv: %d correction(s)" % len(corrected))
+        for c in corrected:
+            print("    " + c)
     return check()
 
 
-def check():
-    """Have KiCad export a netlist and compare it to the verified design.
+def find_cli():
+    """kicad-cli, wherever KiCad put it. It is not on PATH on Windows."""
+    found = shutil.which("kicad-cli")
+    if found:
+        return found
+    for pat in (r"C:\Program Files\KiCad\*\bin\kicad-cli.exe",
+                r"C:\Program Files (x86)\KiCad\*\bin\kicad-cli.exe",
+                "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli",
+                "/usr/lib/kicad/bin/kicad-cli"):
+        hits = sorted(glob.glob(pat))
+        if hits:
+            return hits[-1]
+    return None
 
-    This is the only check worth much. Everything up to here is this script
-    agreeing with itself; this is KiCad's own parser and connectivity engine
-    reading what was written and saying what it is actually connected to. It
-    caught a real fault the first time it ran - C9, the bulk cap, was moved to
-    ROW_VCC in module.net but left on the analog rail here.
+
+def check():
+    """Make KiCad read what was written and say whether it is right.
+
+    Three questions, because each of the first two has a blind spot the others
+    cover:
+
+      nets   does it connect what module.net says? KiCad's own parser and
+             connectivity engine, not this script agreeing with itself. It
+             earned its keep immediately - C9 had been moved to ROW_VCC in
+             module.net but left on the analog rail here.
+      parts  is each one the part BOM.csv specifies? The netlist check compares
+             nets and cannot see a value, which is how C9 went on sitting at
+             10 uF on an 0603 land long after its net was fixed.
+      ERC    electrical rules. Never run on this sheet at all until 2026-08-28,
+             because KiCad 7's CLI had no erc subcommand; 8 added it. It found
+             four undriven rails and nineteen fragments of deleted parts.
     """
     import sexpdata
-    if not shutil.which("kicad-cli"):
-        print("\n  kicad-cli not found: SKIPPING the netlist check.\n"
-              "  Install KiCad (apt install kicad) to verify this file.")
+    cli = find_cli()
+    if not cli:
+        print("\n  kicad-cli not found: SKIPPING every check.\n"
+              "  Install KiCad 8 or newer to verify this file.")
         return 0
-    out = "/tmp/module-cli.net"
-    subprocess.run(["kicad-cli", "sch", "export", "netlist", "--output", out, OUT],
-                   check=True, capture_output=True)
-    if not os.path.exists(out):
-        print("\n  KiCad FAILED TO LOAD the generated schematic")
-        return 1
 
-    def load(path):
-        d = sexpdata.loads(open(path).read())
-        def find(n, k):
-            return [x for x in n if isinstance(x, list) and x and str(x[0]) == k]
-        return {str(find(n, "name")[0][1]):
-                set((str(find(x, "ref")[0][1]), str(find(x, "pin")[0][1]))
-                    for x in find(n, "node"))
-                for n in find(find(d, "nets")[0], "net")}
+    def find(node, key):
+        return [x for x in node if isinstance(x, list) and x and str(x[0]) == key]
 
-    strip = lambda d: {k: v for k, v in d.items()
-                       if not k.startswith(("unconnected-", "Net-"))}
-    got = strip(load(out))
-    want = strip(load(os.path.join(HERE, "module.net")))
-    bad = [k for k in set(got) | set(want) if got.get(k, set()) != want.get(k, set())]
-    print(f"\n  KiCad loads it and exports {len(got)} nets")
-    if bad:
-        print(f"  {len(bad)} DISAGREE with module.net:")
-        for k in sorted(bad):
-            a, b = want.get(k, set()), got.get(k, set())
-            print(f"    {k}: missing={sorted(a - b)} extra={sorted(b - a)}")
-        return 1
-    print(f"  all {len(want)} match module.net exactly")
-    return 0
+    tmp = tempfile.mkdtemp(prefix="taxelscan-")
+    try:
+        netfile = os.path.join(tmp, "cli.net")
+        ercfile = os.path.join(tmp, "erc.rpt")
+        subprocess.run([cli, "sch", "export", "netlist", "--output", netfile, OUT],
+                       check=True, capture_output=True)
+        if not os.path.exists(netfile):
+            print("\n  KiCad FAILED TO LOAD the generated schematic")
+            return 1
+        doc = sexpdata.loads(io.open(netfile, encoding="utf-8").read())
+        rc = 0
+
+        # ---- nets ----------------------------------------------------------
+        def nets_of(d):
+            # #-prefixed refs are power flags and other annotation. They carry
+            # no copper, so module.net does not list them and neither do we.
+            return {str(find(n, "name")[0][1]):
+                    set((str(find(x, "ref")[0][1]), str(find(x, "pin")[0][1]))
+                        for x in find(n, "node")
+                        if not str(find(x, "ref")[0][1]).startswith("#"))
+                    for n in find(find(d, "nets")[0], "net")}
+
+        def strip(d):
+            return {k: v for k, v in d.items()
+                    if not k.startswith(("unconnected-", "Net-"))}
+
+        got = strip(nets_of(doc))
+        want = strip(nets_of(sexpdata.loads(
+            io.open(os.path.join(HERE, "module.net"), encoding="utf-8").read())))
+        bad = [k for k in set(got) | set(want)
+               if got.get(k, set()) != want.get(k, set())]
+        print("\n  KiCad loads it and exports %d nets" % len(got))
+        if bad:
+            rc = 1
+            print("  %d DISAGREE with module.net:" % len(bad))
+            for k in sorted(bad):
+                a, b = want.get(k, set()), got.get(k, set())
+                print("    %s: missing=%s extra=%s"
+                      % (k, sorted(a - b), sorted(b - a)))
+        else:
+            print("  all %d match module.net exactly" % len(want))
+
+        # ---- parts ---------------------------------------------------------
+        def prop(comp, key):
+            hit = find(comp, key)
+            return str(hit[0][1]) if hit and len(hit[0]) > 1 else ""
+
+        seen = {prop(c, "ref"): (prop(c, "value"), prop(c, "footprint"))
+                for c in find(find(doc, "components")[0], "comp")
+                if not prop(c, "ref").startswith("#")}
+        bom = load_bom()
+        wrong = {r: (seen.get(r), bom[r]) for r in bom if seen.get(r) != bom[r]}
+        extra = sorted(set(seen) - set(bom))
+        if wrong or extra:
+            rc = 1
+            print("  %d PART(S) DISAGREE with BOM.csv:" % (len(wrong) + len(extra)))
+            for r in sorted(wrong):
+                print("    %s: is %s should be %s" % (r, wrong[r][0], wrong[r][1]))
+            for r in extra:
+                print("    %s: on the sheet, absent from BOM.csv" % r)
+        else:
+            print("  all %d parts match BOM.csv in value and footprint" % len(bom))
+
+        # ---- ERC -----------------------------------------------------------
+        subprocess.run([cli, "sch", "erc", "--output", ercfile, "--severity-all",
+                        "--exit-code-violations", OUT], capture_output=True)
+        report = (io.open(ercfile, encoding="utf-8").read()
+                  if os.path.exists(ercfile) else "")
+        m = re.search(r"Errors (\d+)\s+Warnings (\d+)", report)
+        if not m:
+            print("  ERC produced no report")
+            return 1
+        errors, warnings = int(m.group(1)), int(m.group(2))
+        print("  ERC: %d errors, %d warnings" % (errors, warnings))
+        for kind, text in re.findall(r"\[(\w+)\]: ([^\n]+)", report):
+            print("    %s: %s" % (kind, text.strip()))
+        if errors:
+            rc = 1
+        return rc
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

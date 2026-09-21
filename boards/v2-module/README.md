@@ -83,19 +83,57 @@ lost at layout. Named labels put it on the sheet where it can be seen.
 
 ### Verification
 
-`./gen_schematic.py` ends by having **KiCad itself** export a netlist from the
-generated file and comparing it against `module.net`:
+`./gen_schematic.py` ends by handing the generated file to **KiCad itself** and
+asking three questions:
 
     KiCad loads it and exports 87 nets
     all 87 match module.net exactly
+    all 30 parts match BOM.csv in value and footprint
+    ERC: 0 errors, 5 warnings
 
-That is the only check worth much here — everything before it is the script
-agreeing with itself, while this is KiCad's own parser and connectivity engine
-reading what was written. It earned its keep immediately: the first run came
-back 85/87, because C9 (the bulk cap) had been moved to ROW_VCC in `module.net`
-but left on the analog rail by the schematic transform.
+These are worth more than everything before them, which is only the script
+agreeing with itself. This is KiCad's own parser, connectivity engine and rule
+checker reading what was written.
+
+Each has a blind spot the others cover, and both of the first two have already
+been caught out by the same component:
+
+- **nets** caught C9 on the first run — 85/87, because the bulk cap had moved
+  to ROW_VCC in `module.net` but stayed on the analog rail here.
+- **parts** caught C9 again, much later. Fixing its *net* left its *value*
+  alone, so the sheet still said 10 µF on an 0603 land while `BOM.csv` said
+  22 µF on an 0805 — below the ~15 µF the transient needs, on a pad the part
+  does not fit. A netlist comparison cannot see a value, and ERC does not read
+  them. `BOM.csv` is now the single source of truth for what each part *is*,
+  applied by the generator rather than kept in step by hand.
+- **ERC** had never run at all until 2026-08-28, because KiCad 7's `kicad-cli`
+  had no `erc` subcommand. The first run found 29 violations. Four rails were
+  undriven — rev-1's lone PWR_FLAG left with the `#FLG` symbols and nothing
+  replaced it — and nineteen more were fragments of deleted parts: the wires,
+  labels and no-connect flags of the XIAO, R5 and that PWR_FLAG, still on the
+  sheet after the symbols went. Debris hanging off an otherwise correct net
+  does not change what the net joins, which is exactly why the netlist check
+  never saw it, and why deleting it is safe — the 87 still have to match
+  afterwards.
+
+The five remaining warnings are all `lib_symbol_mismatch`, on the four test
+points and J3. They are true and deliberate: `Connector:TestPoint` is
+synthesised because rev-1 has nothing close enough to reuse, and `Conn_01x20`
+is derived from rev-1's proven 32-way part so the pin geometry cannot disagree
+with it. Both therefore differ from KiCad's current stock symbols. Silencing a
+warning that is telling the truth seemed worse than explaining it here.
 
 `module.pdf` is the rendered sheet, for looking at without KiCad installed.
+
+### Running the generators
+
+Both need Python packages that are not in the standard library:
+
+    pip install kiutils sexpdata
+
+`gen_schematic.py` finds `kicad-cli` on PATH, and failing that in KiCad's usual
+install location on Windows, macOS and Linux — it is not on PATH on Windows.
+Without it the script still writes the file but skips every check and says so.
 
 ### Opening it
 
@@ -106,10 +144,68 @@ expected. The only non-stock library it needs is `FlexiTac`, which lives in
 `../../libraries/` and is wired up in this project's `fp-lib-table` and
 `sym-lib-table` — everything else ships with KiCad.
 
+## The PCB
+
+`module.kicad_pcb` is generated too, and from the strongest source of the
+three: rev-1's board was fabricated, assembled and measured, so its row
+fanout, mux breakout and sense routing are known to work *at the geometry they
+are drawn at*. `./gen_pcb.py` transforms it. **rev-1 is opened read-only and
+is not modified** — it remains the board to build for single-sensor use.
+
+    ./gen_pcb.py        writes module.kicad_pcb, then checks it with KiCad
+
+| | |
+|---|---|
+| **Kept** | 890 track segments and 152 vias at rev-1's exact coordinates — all 32 rows, all 32 columns, the shift-register chain, the mux selects, ROW_CLK and ROW_LATCH below R3/R4 |
+| **Removed** | A1 and R5, and the 142 tracks and vias on the nets they terminated — those nets run to J3 now and have to be redrawn |
+| **Split** | 102 GND and +3.3V tracks and vias, each assigned to PWR_GND/AGND or ROW_VCC/AVCC by which side's pad it lies nearest. Two were too close to call and are printed for review rather than guessed |
+| **Board** | 49.7 × 40.6 mm, down from rev-1's 52 × 46 — **16% smaller** |
+
+The width is set by J1 and J2, which span 47.7 mm side by side. Losing the
+XIAO buys height and interior room, not width; getting below ~49 mm would mean
+putting the two sensor connectors on opposite edges, which is a different
+board rather than a smaller one.
+
+### The ground split on copper
+
+Six zones where rev-1 had four: PWR_GND and AGND on In1.Cu and B.Cu, ROW_VCC
+and AVCC on In2.Cu, divided at y = 122.6 mm. Above the line the row drivers
+and their decoupling; below it the pulldowns, muxes and buffer. **The two
+grounds never meet on this board** — they are joined at the hub, which is the
+entire point of splitting them.
+
+C7 and C8 move down into the analog half. They are AVCC/AGND decoupling that
+rev-1 could put anywhere because its ground was unified; C8 in particular sat
+at (125, 113.8), deep inside the row-driver block. C9 moves too, because at
+22 µF it needs an 0805 land and the larger part reached across the split line.
+
+### Verify
+
+    all 239 pads in module.net are on the board with the right net
+    DRC: 57 violations, 56 unconnected items
+
+The pad check is the board's version of the schematic's netlist comparison,
+and it is what makes the board and the verified design the same circuit rather
+than two things that resemble each other. DRC runs with `--refill-zones`,
+because an unfilled board reports every plane connection as unconnected, and
+with `--schematic-parity`, which is KiCad comparing the board against
+`module.kicad_sch` directly.
+
+`pcb_top.png` is the render.
+
 ## Still to do
 
-The PCB. There is no `.kicad_pcb` — placing and routing ~90 nets is not
-something to do without opening the board editor. And `kicad-cli` in KiCad 7
-has no ERC subcommand (it arrived in 8), so this schematic is checked for
-connectivity but **not** for electrical rules; run ERC once on a machine with
-KiCad 8 or newer.
+**Routing, in pcbnew.** The generator does placement, nets and planes; it does
+not route, and the remaining work is the interactive kind:
+
+| | |
+|---|---|
+| **56 unconnected items** | J3's twenty nets, R6/R7/R8, and the four test points. Everything else is already routed |
+| **3 parts need hand placement** | C7, C8 and H1 have no clear space at the position they belong in — C8 currently overlaps U5. Each needs moving with a local reroute; the generator prints them on every run rather than quietly placing them somewhere useless |
+| **8 solder_mask_bridge** | J3's 0.5 mm pitch. J1 and J2 have the same pitch and pass, so this is a mask rule to set, not a layout fault |
+| **11 net_conflict** | The J1/J2/J3 shell pads, tied to AGND on the board but absent from the schematic — `Conn_01x32` has no such pin. Worth adding to the symbols so the two stop disagreeing |
+| **13 silk warnings, 7 track_dangling, 2 via_dangling** | Cosmetic and cleanup |
+
+The schematic is checked three ways on every run — connectivity against
+`module.net`, parts against `BOM.csv`, and ERC — and passes all three with no
+errors.

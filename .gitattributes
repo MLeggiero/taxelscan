@@ -1,0 +1,15 @@
+# Normalise line endings: text files are stored with LF and checked out per
+# the platform. KiCad, Python and Markdown all read either.
+* text=auto
+
+# Binary content, never normalised or diffed as text
+*.png binary
+*.gif binary
+*.jpg binary
+*.pdf binary
+*.zip binary
+*.step binary
+*.STEP binary
+*.wrl binary
+*.exe binary
+*.bin binary

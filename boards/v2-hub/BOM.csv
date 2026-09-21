@@ -1,0 +1,58 @@
+Reference,Value,Footprint,Note
+U1,STM32H743ZIT6,Package_QFP:LQFP-144_20x20mm_P0.5mm,480 MHz M7; ADC1/2/3 all 16-bit
+U2,USB3300-EZK,Package_DFN_QFN:QFN-32-1EP_5x5mm_P0.5mm_EP3.45x3.45mm,ULPI high-speed PHY
+U3-U10,SN74LVC244APW,Package_SO:TSSOP-20_4.4x6.5mm_P0.65mm,"one per module: 7 branches buffered, 1 spare"
+U11,CD74HC4067SM,Package_SO:SSOP-24_5.3x8.2mm_P0.65mm,housekeeping: 8 module rails + the hub's own
+U12-U15,TPS2561DRCR,Package_SON:VSON-10-1EP_3x3mm_P0.5mm_EP1.65x2.4mm_ThermalVias,"dual current-limited switch, two modules each"
+U16,TPS563201DDCR,Package_TO_SOT_SMD:SOT-23-6,buck 5V -> 3.64V
+"U17,U18",TLV75733PDBVR,Package_TO_SOT_SMD:SOT-23-5,"VDD_D and ROW_VCC, 1 A each"
+U19,LP5907MFX-3.3,Package_TO_SOT_SMD:SOT-23-5,"AVCC: 6.5 uVrms, feeds the op-amps"
+Y1,24MHz,Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm,PHY reference
+Y2,25MHz,Crystal:Crystal_SMD_3225-4Pin_3.2x2.5mm,MCU HSE
+J1-J8,FFC_20P_0.5mm,Connector_FFC-FPC:Hirose_FH12-20S-0.5SH_1x20-1MP_P0.50mm_Horizontal,"one per module; pinout is module J3's, checked against it"
+J9,USB_C,Connector_USB:USB_C_Receptacle_USB2.0_16P_Vertical,to the host
+J10,5V_2A,Connector_BarrelJack:BarrelJack_Horizontal,USB's 500 mA default cannot carry 572 mA
+J11,SWD,Connector_PinHeader_1.27mm:PinHeader_1x05_P1.27mm_Vertical,SWD + reset
+C1-C8,100nF,Capacitor_SMD:C_0603_1608Metric,buffer decoupling (x8)
+C25,100nF,Capacitor_SMD:C_0603_1608Metric,housekeeping mux decoupling
+"C26,C29,C32,C35",100nF,Capacitor_SMD:C_0603_1608Metric,switch input (x4)
+"C27,C28,C30,C31,C33,C34,C36,C37",100nF,Capacitor_SMD:C_0603_1608Metric,switch output (x8)
+C38-C41,100nF,Capacitor_SMD:C_0603_1608Metric,PHY 3.3V decoupling (x4)
+C42,1uF,Capacitor_SMD:C_0603_1608Metric,PHY internal 1.8V
+C43,1uF,Capacitor_SMD:C_0603_1608Metric,PHY analog 1.8V
+C44,100nF,Capacitor_SMD:C_0603_1608Metric,VBUS detect
+"C45,C46",18pF,Capacitor_SMD:C_0603_1608Metric,24 MHz load (x2)
+C47-C57,100nF,Capacitor_SMD:C_0603_1608Metric,MCU VDD decoupling (x11)
+C58,100nF,Capacitor_SMD:C_0603_1608Metric,VBAT
+C59,100nF,Capacitor_SMD:C_0603_1608Metric,VDDA
+C60,1uF,Capacitor_SMD:C_0603_1608Metric,VDDA
+C61,1uF,Capacitor_SMD:C_0805_2012Metric,VREF+
+C62,4.7uF,Capacitor_SMD:C_0805_2012Metric,VDD33_USB
+"C63,C64",2.2uF,Capacitor_SMD:C_0603_1608Metric,core regulator (x2)
+C65,100nF,Capacitor_SMD:C_0603_1608Metric,reset
+"C66,C67",18pF,Capacitor_SMD:C_0603_1608Metric,25 MHz load (x2)
+"C68,C69",10uF,Capacitor_SMD:C_0805_2012Metric,MCU bulk (x2)
+C70,100nF,Capacitor_SMD:C_0603_1608Metric,bootstrap
+C71,10uF,Capacitor_SMD:C_0805_2012Metric,buck input
+C72,100nF,Capacitor_SMD:C_0603_1608Metric,buck input
+"C73,C74",22uF,Capacitor_SMD:C_0805_2012Metric,buck output (x2)
+C75,1uF,Capacitor_SMD:C_0603_1608Metric,LDO input: MCU
+C76,10uF,Capacitor_SMD:C_0805_2012Metric,LDO output: MCU
+C77,1uF,Capacitor_SMD:C_0603_1608Metric,LDO input: 8 x 30 mA rows
+C78,10uF,Capacitor_SMD:C_0805_2012Metric,LDO output: 8 x 30 mA rows
+C79,1uF,Capacitor_SMD:C_0603_1608Metric,LDO input: 8 x 3 mA analog
+C80,10uF,Capacitor_SMD:C_0805_2012Metric,LDO output: 8 x 3 mA analog
+C9-C24,1nF,Capacitor_SMD:C_0603_1608Metric,sample-and-hold reservoir (x16)
+D1,LED,LED_SMD:LED_0603_1608Metric,status
+FB1,600R@100MHz,Inductor_SMD:L_0603_1608Metric,keeps the MCU's analog supply off the cable-fed AVCC rail
+L1,2.2uH,Inductor_SMD:L_1210_3225Metric,buck output
+"R1,R4,R7,R10",150k,Resistor_SMD:R_0603_1608Metric,TPS2561 current limit - VERIFY against the datasheet curve (x4)
+R13,8.06k,Resistor_SMD:R_0603_1608Metric,PHY bias
+"R14,R15",5.1k,Resistor_SMD:R_0603_1608Metric,USB-C sink advertisement (x2)
+R16,10k,Resistor_SMD:R_0603_1608Metric,boot from flash
+R17,1k,Resistor_SMD:R_0603_1608Metric,status LED
+R18,37.4k,Resistor_SMD:R_0603_1608Metric,3.64 V = 0.768 x (1 + 37.4/10)
+R19,10k,Resistor_SMD:R_0603_1608Metric,buck feedback
+"R2,R3,R5,R6,R8,R9,R11,R12",10k,Resistor_SMD:R_0603_1608Metric,open-drain fault pullup (x8)
+R20,0R,Resistor_SMD:R_0805_2012Metric,THE single-point ground join - see README
+RN1-RN16,100R,Resistor_SMD:R_Array_Convex_4x0603,series termination (x16)

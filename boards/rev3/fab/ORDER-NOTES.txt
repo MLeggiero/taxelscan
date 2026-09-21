@@ -1,0 +1,31 @@
+JLCPCB order settings for rev-3 (checked 17 September 2026, parts added 21 September)
+
+PCB
+  Layers 4, thickness 1.6 mm, stackup JLC04161H-7628 (inner 0.5 oz)
+  Outer copper 1 oz; via 0.3 mm / 0.45 mm or larger (no surcharge)
+  Via Covering: Epoxy Filled & Capped  <- required, see STACKUP-NOTES
+  Min trace/space 0.10 mm (above the 3.5 mil surcharge band)
+
+Assembly
+  Standard PCBA (0201 parts; Economic stops at 0402), top side only
+  Middle boards: rev3-bom.csv + rev3-cpl.csv (no R11/R12)
+  The two end boards: rev3-bom-end.csv + rev3-cpl-end.csv
+  JLCPCB adds rails; J1/J2 overhang the top edge by 1.5 mm, so expect
+  an SMT fixture fee. J6 is through-hole (or leave it for hand fit).
+
+Check in the placement preview before confirming
+  L1: the polarity dot must sit on pad 1, the VCORE end (towards U9's
+      DVDD side), per the RP2350 datasheet section 6.3.8.
+  U9, U12, U14: their pin-1 marks touch neighbouring pads and may be
+      clipped from the silkscreen; check pin 1 against the Fab drawing.
+  D1-D5, D3 (LED), Q1, U1-U8, U10, U11, U13, Y1: pin 1 / cathode.
+  D5 (USBLC6-2P6, SOT-666): pin 1 is the corner nearest J5's D+ pads;
+      pins 1/6 carry D+, 3/4 D-, 5 VBUS, 2 GND - a wrong turn shorts
+      D+ to VBUS.
+
+Low stock on 17 September: J1/J2 C597985 (44), U8 C580457 (23),
+  R23/R24 C852682 (2800), R21/R22 C852830 (3700), U13 C132554 (902),
+  R34 C149916 (550). On 21 September: D5 C15999 (8345), R38 C861215
+  (6180); C9/C10/C39/C46 C3039694 shows 0 on LCSC's own site but 98k
+  in JLCPCB's assembly stock, which is the one that matters. Re-check
+  on the order day.

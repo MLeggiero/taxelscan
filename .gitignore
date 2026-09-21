@@ -59,3 +59,27 @@ firmware/sim/obj/
 firmware/sim/sim
 firmware/sim/sim-fixed
 firmware/sim/*.exe
+
+# Scratch area for the rev-3 routing tools: freerouting runs, DRC reports,
+# stage boards, the grid router binary and the Python deps it needs
+# (audit-tools/README.md says how to rebuild it). Hundreds of MB, never committed.
+tmp/
+
+# Local recovery points for the rev-3 board. Every edit that touched the board
+# left the previous version here; the documents refer to them by directory
+# name. They are kept on the working machine, not in the repository.
+boards/rev3/backups/
+
+# Intermediate boards and router exchange files that the rev-3 tools write
+# beside the real board (rev3.kicad_pcb.<stage>, rev3.dsn, rev3.ses ...).
+boards/rev3/rev3.kicad_pcb.*
+boards/rev3/*.dsn
+boards/rev3/*.dsn.*
+boards/rev3/*.ses
+boards/rev3/*-mazerouted.kicad_pcb
+boards/rev3/GERBER\ OUTPUT/
+boards/rev3/tmp/
+
+# pcbnew leaves these beside any board it saves under a new name
+*.kicad_pcb.bak
+*.kicad_sch.bak

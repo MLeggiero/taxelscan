@@ -1,0 +1,23 @@
+Stackup the design assumes
+
+  4 layer, 1.6 mm finished thickness
+  F.Cu / B.Cu   1 oz (35 um)
+  In1.Cu        0.5 oz (17.5 um)   GND plane
+  In2.Cu        0.5 oz (17.5 um)   +3.3V plane, and some routing
+
+The 5 V rails (+5V_BUS, +5V_USB) run only on the 1 oz outer layers,
+0.30 mm wide (USB_BUS_SW 0.40 mm): about 1 A at a 10 C rise against
+the 0.7 A the chain can draw at the switch's high current limit.
+Nothing on In2 carries 5 V, so 0.5 oz inner copper is enough; 1 oz
+inner layers are margin, not a problem.
+
+Vias are 0.3 mm drill / 0.5 or 0.6 mm pad: a 0.10 mm annular ring,
+inside JLCPCB's via rule (pad >= hole + 0.10 mm) at no extra cost.
+
+152 via holes lie wholly (19) or partly (133) inside SMD pad
+openings, including all 7 ground vias in U9's exposed pad, which
+sit in the middle of its paste windows. Tenting cannot cover them.
+ORDER THE VIAS EPOXY FILLED AND COPPER CAPPED (JLCPCB 'Via Covering:
+Epoxy Filled & Capped'), or solder paste drains into the holes: dry
+joints under the QFN and tombstoned 0201/0402s (42 of them have a via
+hole on only one pad).

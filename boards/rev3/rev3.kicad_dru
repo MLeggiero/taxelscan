@@ -1,0 +1,23 @@
+(version 1)
+# Fine-pitch escape area around the RP2354A (QFN-60, 0.4 mm pitch) and the crystal
+# group below it. JLCPCB's 4-layer process allows 0.09 mm track and space; 0.1 is
+# used here so every one of the fifteen bottom-row pins can leave beside its
+# neighbours' bypass capacitors. Everything outside the area keeps 0.15/0.15.
+(rule "qfn escape clearance"
+  (condition "A.intersectsArea('U9_escape') && B.intersectsArea('U9_escape')")
+  (constraint clearance (min 0.1mm)))
+(rule "qfn escape track width"
+  (condition "A.intersectsArea('U9_escape')")
+  (constraint track_width (min 0.1mm)))
+(rule "tusb320 escape clearance"
+  (condition "A.intersectsArea('U13_escape') && B.intersectsArea('U13_escape')")
+  (constraint clearance (min 0.1mm)))
+(rule "tusb320 escape track width"
+  (condition "A.intersectsArea('U13_escape')")
+  (constraint track_width (min 0.1mm)))
+(rule "adc escape clearance"
+  (condition "A.intersectsArea('U8_escape') && B.intersectsArea('U8_escape')")
+  (constraint clearance (min 0.1mm)))
+(rule "adc escape track width"
+  (condition "A.intersectsArea('U8_escape')")
+  (constraint track_width (min 0.1mm)))
