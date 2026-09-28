@@ -235,7 +235,7 @@ every one of those mitigations gets 300× harder. **The cable goes; the ADC
 comes back to the sensor.**
 
     ./gen_rev3.py        writes rev3.net and BOM.csv, then checks them
-    ./check_faults.py    runs the baseline and 33 injected-fault checks
+    ./check_faults.py    runs the baseline and 35 injected-fault checks
 
 Standard library only. It reads KiCad's symbol libraries directly, so it needs
 KiCad installed but no Python packages — unlike `../v2-module/`, which needs
@@ -619,12 +619,12 @@ routing only, no bottom-side components.
 
 ## Verify
 
-`./gen_rev3.py` asserts the whole design — **139 nets, 111 parts, 501
+`./gen_rev3.py` asserts the whole design — **140 nets, 114 parts, 511
 connections** — and `./check_faults.py` then breaks the generator on purpose to
-show the assertions bite. **All 33 injected faults are caught** — the 34th case
+show the assertions bite. **All 35 injected faults are caught** — the 36th case
 is the unmodified baseline, which must report nothing. The table below is a
-sample of them (counts re-run 17 September 2026, when the reversed-L1 probe was
-added):
+sample of them (counts re-run 21 September 2026, when the USB TVS and hot-plug
+damper probes were added):
 
 | Injected fault | Caught as |
 |---|---|

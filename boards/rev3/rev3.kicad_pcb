@@ -23951,6 +23951,18 @@
 		(layer "Edge.Cuts")
 		(uuid "9cd76b67-5a55-4cc8-9526-9366253fca66")
 	)
+	(gr_text "TaxelScan v3\nDesigned by Mark Leggiero\nLIDAR Lab, GT, 2026"
+		(at 129.015745 118.996648 0)
+		(layer "B.SilkS")
+		(uuid "2a2f3152-59bb-43f7-af4e-0393ea0c4ae7")
+		(effects
+			(font
+				(size 1.2 1.2)
+				(thickness 0.18)
+			)
+			(justify mirror)
+		)
+	)
 	(segment
 		(start 133.659495 116.645423)
 		(end 133.672893 116.622218)

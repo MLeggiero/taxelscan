@@ -92,6 +92,16 @@ def main():
     ok &= run(cli, ["pcb", "export", "drill", "--output", GERBERS,
                     "--format", "excellon", "--excellon-separate-th",
                     "--generate-map", BOARD], "drill files")
+    # Drawings for the assembler and for checking the placement preview by eye:
+    # top copper, silkscreen, fab outlines (pin-1 marks, L1's dot) and courtyards.
+    ok &= run(cli, ["pcb", "export", "pdf", "--output", os.path.join(FAB, "rev3-assembly-top.pdf"),
+                    "--layers", "F.Fab,F.SilkS,F.CrtYd,Edge.Cuts,F.Cu", "--include-border-title",
+                    "--mode-single", "--black-and-white", BOARD], "assembly drawing")
+    ok &= run(cli, ["pcb", "export", "pdf", "--output", os.path.join(FAB, "rev3-fab-drawing.pdf"),
+                    "--layers", "F.Fab,Edge.Cuts,User.Drawings", "--include-border-title",
+                    "--mode-single", "--black-and-white", BOARD], "fab drawing")
+    ok &= run(cli, ["sch", "export", "pdf", "--output", os.path.join(FAB, "rev3-schematic.pdf"),
+                    os.path.join(HERE, "rev3.kicad_sch")], "schematic pdf")
     pos = os.path.join(FAB, "rev3-cpl-raw.csv")
     ok &= run(cli, ["pcb", "export", "pos", "--output", pos, "--format", "csv",
                     "--units", "mm", "--side", "both", "--exclude-dnp", BOARD],
@@ -231,12 +241,13 @@ def main():
             "      pins 1/6 carry D+, 3/4 D-, 5 VBUS, 2 GND - a wrong turn shorts",
             "      D+ to VBUS.",
             "",
-            "Low stock on 17 September: J1/J2 C597985 (44), U8 C580457 (23),",
-            "  R23/R24 C852682 (2800), R21/R22 C852830 (3700), U13 C132554 (902),",
-            "  R34 C149916 (550). On 21 September: D5 C15999 (8345), R38 C861215",
-            "  (6180); C9/C10/C39/C46 C3039694 shows 0 on LCSC's own site but 98k",
-            "  in JLCPCB's assembly stock, which is the one that matters. Re-check",
-            "  on the order day.",
+            "JLCPCB stock on 28 September 2026, parts needed per board in brackets:",
+            "  D1/D2 C179428 PMEG2005AEA: 9 (2) = 4 boards. Same-package alternative:",
+            "      Nexperia PMEG3005AEA,115 C513110 (30 V, 0.5 A, SOD-323), 1341 in stock.",
+            "  R18 C852573 180k: 9 (1) = 9 boards. Alternative: TE CPF0402B180KE",
+            "      C2075256 (thin film, 0.1 %), 303 in stock.",
+            "  U8 C580457 LTC1865LIMS: 23 (1). J1/J2 C597985 FH12: 40 (2) = 20 boards.",
+            "  Every other line has stock for at least 50 boards. Re-check on the order day.",
             "")))
     print("  %-22s fab/ORDER-NOTES.txt" % "order notes")
 

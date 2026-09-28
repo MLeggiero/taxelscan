@@ -2,14 +2,13 @@
 # the platform. KiCad, Python and Markdown all read either.
 * text=auto
 
-# Binary content, never normalised or diffed as text
+# Binary content, never normalised or diffed as text. STEP models are text
+# and stay under text=auto, which is how they are already stored.
 *.png binary
 *.gif binary
 *.jpg binary
 *.pdf binary
 *.zip binary
-*.step binary
-*.STEP binary
 *.wrl binary
 *.exe binary
 *.bin binary

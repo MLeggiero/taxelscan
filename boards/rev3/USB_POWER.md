@@ -3,7 +3,7 @@
 The master receives USB data and 5 V from a computer. It can inject protected
 5 V into pin 1 of both RS485 connectors. The same circuit is fitted on every
 board; a board without a local USB attachment leaves its injection switch off.
-The PCB outline remains **54 × 36 mm**, and connector positions are retained.
+The board is **60.3 × 35.9 mm**.
 
 **1.5 A is a source capability, not a minimum load.** One sensor board draws
 less than eight. This design accepts default USB current for a smaller chain
@@ -145,7 +145,7 @@ application. See its README for integration and native test instructions.
 
 Schematic/netlist/DRC checks verify the design files. They cannot establish
 these electrical results or certify USB compliance. Existing fabrication
-outputs predate this change and must not be used for the revised circuit.
+outputs in `fab/` include this circuit.
 
 ## Component references
 

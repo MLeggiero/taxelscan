@@ -1,131 +1,143 @@
-# TaxelScan
+# TaxelScan v3
 
-**An open reader board and embedded conditioning stack for flexible resistive
-tactile matrices.**
+Reader board for a 32 × 32 carbon-nanotube tactile mat. Up to eight boards
+share one RS-485 harness, start every frame on the same edge, and reach the
+host through the first board's USB-C port.
 
-TaxelScan reads a 16 × 32 pressure surface (512 taxels) at 80 frames per second
-by default and has been measured at 200 fps. An RP2350 turns the raw matrix
-into a cleaned pressure map and contact records—area, force proxy, peak,
-centroid, and bounds—before the data reaches the host.
+> **Status, 28 Sep 2026:** designed and verified in KiCad, fabrication and
+> assembly files ready, not yet built. Firmware not yet written. Every number
+> below is a design value or a datasheet value, not a measurement.
 
-<p align="center">
-  <img src="assets/taxelscan-demo.gif" alt="A hand presses the tactile sensor beside its synchronized live pressure map" width="804">
-</p>
+| Top | Bottom |
+|:---:|:---:|
+| <img src="assets/taxelscan-v3-top.png" alt="Top view of the TaxelScan v3 board" width="420"> | <img src="assets/taxelscan-v3-bottom.png" alt="Bottom view of the TaxelScan v3 board" width="420"> |
 
-The project is more than a matrix multiplexer. Its main contribution is the
-combination of a purpose-built analog readout and a contact-safe conditioning
-pipeline that handles electronic drift, sensor-film creep, impulses, and
-isolated phantoms without absorbing a sustained grasp.
+Plan-view renders of `boards/rev3/rev3.kicad_pcb`, 60.3 × 35.9 mm.
 
-## Two boards
+## Key numbers
 
-| | rev-1 (built, measured) | rev-3 (designed, fab package ready) |
+| | |
+|---|---|
+| Taxels | 32 × 32 = 1,024 per board; 8,192 on an 8-board harness |
+| Converter | 16-bit SAR, 2 channels, 150 ksps max (LTC1865L) |
+| Noise *(predicted)* | ≈ 17 LSB p-p ≈ 11.9 noise-free bits |
+| Frame rate *(predicted)* | 60 Hz target for 8 boards; 11.2 ms scan, 89 fps ceiling |
+| Controller | RP2354A: 2 × Cortex-M33 at 150 MHz, 520 kB SRAM, 2 MB flash in package |
+| Board | 60.3 × 35.9 × 1.6 mm, 4 layers, all parts on top |
+| Parts | 109 placed, 74 BOM lines, $33.08 per board |
+
+## Signal chain
+
+| Stage | Value | Part |
 |---|---|---|
-| Sensor | 16 × 32 Velostat mat, one per board | 32 × 32 carbon-nanotube mat (~1 MΩ), one per board, up to eight boards on one harness |
-| Controller | Seeed XIAO RP2350 module, internal 12-bit ADC | bare RP2354A (2 MB flash in package), external LTC1865L 16-bit SAR |
-| Row drive | 4 × SN74LVC595A, 32 actively driven rows | unchanged |
-| Column readout | 2 × CD74HC4067, two banks | unchanged |
-| Analog front end | 3.3 kΩ sense pulldowns, TLV9062 unity-gain buffers | 10 kΩ thin-film pulldowns, TLV9062 gain of 6, 51 Ω + 1 nF C0G charge reservoirs, reference tapped ratiometrically off the row rail |
-| Interconnect | USB-C on the module | USB-C with an ESD array and a hot-plug damper, plus two RS-485 pairs (data and frame-sync) on 6-way JST GH harness connectors, with protected 5 V injection from the master's USB port |
-| Board | 52 × 46 mm, 4 layer | 60.3 × 35.9 mm, 4 layer, single-sided assembly, 0201/0402 passives |
-| State | shipped; all firmware numbers in this README were measured on it | routed, DRC-clean, every BOM line verified against LCSC, JLCPCB package in `boards/rev3/fab/`; no firmware yet |
+| Row drive | 32 rows at 3.29 V; unselected rows held at 0 V | 4 × SN74LVC595A |
+| Column select | 2 banks × 16 columns | 2 × CD74HC4067 |
+| Sensor, design basis | 1 MΩ at rest, 50 kΩ pressed (assumed) | CNT film |
+| Pulldown | 10 kΩ, 0.1 %, 25 ppm/°C | R1, R2 |
+| Sense node | 25 mV at rest, 435 mV pressed | |
+| Gain | × 6 (10 kΩ / 2 kΩ) | TLV9062 |
+| ADC input | 149 mV at rest, 2.61 V pressed; 51 Ω + 1 nF C0G (51 ns) | R21/R22, C31/C32 |
+| Reference | row rail via 10 Ω + 10 µF ∥ 10 nF C0G (1.6 kHz), so the reading is ratiometric | R10, C10, C26 |
+| Converter | INL ±8 LSB, no missing codes at 14 bits, 2 LSB RMS transition noise | LTC1865L |
+| 1 LSB | 50 µV at the ADC, 8.4 µV at the sense node | |
+| Settling *(predicted)* | 5.9 µs to 16 bits with ≈ 70 pF on the node | |
 
-<p align="center">
-  <img src="boards/rev1/outputs/pcb_final.png" alt="Rendered rev-1 reader PCB with its row drivers, column multiplexers, analog buffers, FFC connectors, and XIAO footprint" width="620">
-</p>
+## Timing *(predicted)*
 
-Unselected rows remain actively low, so matrix sneak paths terminate at a low
-impedance instead of floating. The LVC row drivers also retain their output
-level under the combined current of a heavily loaded row; that prevents drive
-sag from appearing as lost pressure. rev-3 keeps exactly that topology and
-checks it mechanically: its netlist is derived from rev-1's measured one by a
-generator that asserts every property the design depends on, and a
-fault-injection script proves the assertions bite.
+| Step | Time |
+|---|---|
+| One conversion: 16 SCK at 7.5 MHz + 5 µs | 7.13 µs |
+| One mux channel, both banks, 6 µs settle | 20.3 µs |
+| One row, 16 channels | 330 µs |
+| One frame: 32 rows + 2 dark sweeps | 11.2 ms (18.9 ms at 2× oversampling) |
+| Conditioning 1,024 taxels, second core | ≈ 3.5 ms |
+| Sensor to host at 60 Hz | ≈ 22 ms + USB |
 
-<p align="center">
-  <img src="boards/rev3/pcb_top.png" alt="Rendered rev-3 board: RP2354A, 16-bit converter, two RS-485 transceivers, USB-C and the two harness connectors" width="620">
-</p>
+## Chain
 
-## Signal conditioning
+| | |
+|---|---|
+| Boards per harness | 8, addressed by 3 solder jumpers (all closed = address 0) |
+| Harness | JST GH 6-way, 26 AWG, 1 A, 4 m planned |
+| Pinout | 1 +5 V · 2 GND · 3/4 DATA+/− · 5/6 SYNC+/−; J3 and J4 wired straight through |
+| Transceivers | 2 × SN65HVD75: 20 Mbps, ±12 kV IEC 61000-4-2 on the bus pins |
+| Data pair | half duplex, master polls; 12.5 Mbaud planned, 3 Mbaud for bring-up |
+| Sync pair | master sends a 100 µs pulse per frame; every board starts on its falling edge |
+| Termination | 120 Ω on the two end boards only |
+| Frame size | 2,188 B with a 16-bit map · 1,676 B with 12-bit · 140 B contacts only |
+| 8 boards at 60 Hz | 1.05 MB/s at 16 bits, 804 kB/s at 12 bits; bus 80 % and 63 % busy |
 
-<p align="center">
-  <img src="assets/signal-conditioning.svg" alt="Flowchart of the ten-stage TaxelScan acquisition and signal-conditioning pipeline">
-</p>
+## Power
 
-Core 1 scans on a fixed deadline while core 0 conditions and transmits the
-previous frame. The scan therefore keeps a stable sample clock even when USB or
-the host stalls.
+| | |
+|---|---|
+| Input | 5 V from USB-C or the harness, diode-OR (PMEG2005AEA) |
+| 3.3 V rail | TLV62569 buck: 3.29 V (3.24–3.34 V) |
+| Core rail | RP2354A internal buck with a 3.3 µH AOTA-B201610S3R3 |
+| Draw, 8 boards *(estimate)* | 239 mA typical, 349 mA worst |
+| Harness feed from USB | 321 mA (282–367) on a 500 mA port; 632 mA (570–703) on a 1.5 A or 3 A Type-C source |
+| Boards per feed | 5–6 on a 500 mA port; 8 need a 1.5 A source |
+| Protection | USBLC6-2P6 on D+/D−/VBUS · 1 Ω + 10 µF hot-plug damper · PMEG2010ER reverse block |
 
-Three details carry most of the design:
+## Build
 
-- **Live dark reference.** Every row is driven low before and after the row
-  walk. That bracketed measurement captures ADC offset, amplifier offset, mux
-  leakage, and supply movement, and remains valid while the sensor is pressed.
-- **Contact-safe adaptive baseline.** Falling correction is fast and ungated;
-  rising correction is slow, capped, and frozen around active contacts. Spatial
-  coherence and edge motion keep a static grasp from being learned away.
-- **Contact extraction on the MCU.** Per-taxel thresholds, hysteresis,
-  debounce, isolated-speck removal, and connected components produce useful
-  contacts rather than asking every host to reinterpret raw ADC counts.
+| | |
+|---|---|
+| PCB | JLCPCB, 4 layers, JLC04161H-7628, 1.6 mm, 1 oz outer |
+| Rules | 0.10 / 0.10 mm trace/space in the fine-pitch areas, 0.15 / 0.15 elsewhere; 352 vias, 0.30 / 0.50 mm |
+| Vias | epoxy-filled and capped (required: vias sit in pads) |
+| Assembly | Standard PCBA, top side, 0201 smallest; resistors thin film 0.1 %, 25 ppm/°C |
+| Files | `boards/rev3/fab/`: `rev3-gerbers.zip`; `rev3-bom.csv` + `rev3-cpl.csv` (109 parts); `-end` pair (111 parts, adds 2 × 120 Ω) |
+| Parts cost | $33.08 per board for 10 boards at JLCPCB prices, 28 Sep 2026; the LTC1865L is $18.47 of it. PCB and assembly fees extra |
+| Programming | USB-C with a BOOTSEL button, or SWD on a 2.54 mm 1 × 4 header |
 
-At the default 12.5 ms frame period, the measured 16 × 32 scan takes 10.86 ms
-and conditioning takes 1.76 ms on the other core. The fastest measured setting
-completed 2,999 frames in 15 seconds at 200 fps with no new overruns. See the
-[firmware documentation](firmware/README.md) for the full timing table,
-calibration procedure, diagnostics, runtime options, protocol, and simulator
-results.
+Order options and what to check in the placement preview:
+[`boards/rev3/fab/ORDER-NOTES.txt`](boards/rev3/fab/ORDER-NOTES.txt).
+
+## Verify
+
+```bash
+cd boards/rev3
+python gen_rev3.py      # writes rev3.net and BOM.csv, asserts every net
+python check_faults.py  # injects 35 faults, each must be caught
+python make_fab.py      # gerbers, drills, BOM, CPL, drawings
+```
+
+| Check | Result |
+|---|---|
+| Netlist assertions | 140 / 140 nets |
+| Fault injection | 36 / 36 behave (35 faults + clean baseline) |
+| ERC | 0 errors |
+| DRC, zones filled, schematic parity | 0 unconnected, 0 copper errors |
+
+## Open items
+
+| Item | Value to confirm |
+|---|---|
+| Sensor pressed resistance | 50 kΩ assumed; sets R1/R2 and the gain |
+| Hot-plug overshoot at the buck input | must stay under 6 V |
+| Buck input on the 8th board | 3.58–4.03 V estimated, ≈ 3.6 V needed |
+| USB throughput, 8 × 16-bit maps | 1.05 MB/s against a ≈ 1 MB/s CDC ceiling |
+| Firmware | not written; specification in [`firmware/rev3/PLAN.md`](firmware/rev3/PLAN.md) |
+
+Do not flash `firmware/taxelscan/` to a v3 board. It is the previous board's
+sketch and drives GPIO22/23, which are an address strap and the power-fault
+input on v3.
 
 ## Repository
 
 ```text
-boards/            one self-contained KiCad project per board (see boards/README.md)
-  rev1/            the shipped single-sensor reader: schematic, routed PCB, gerbers, BOM, renders
-  fork-adapter/    passive two-finger sensor adapter
-  rev3/            the multi-board design: generator, schematic, routed PCB, fab/ package,
-                   design notes (README, AUDIT, ROUTING_STATUS, USB_POWER, PLACEMENT)
-  v2-module/, v2-hub/   a shelved split design, kept for the method (see boards/README.md)
-libraries/         the FlexiTac symbols and footprints shared by every board
-firmware/          rev-1 firmware (taxelscan/), native simulator, host tools,
-                   the rev-3 USB power controller (rev3_power/) and the rev-3 plan (rev3/PLAN.md)
-assets/            README animation and pipeline diagram
+boards/rev3/          v3 KiCad project, netlist generator, fab/ package, design notes
+firmware/rev3/        v3 firmware specification
+firmware/rev3_power/  USB power policy, written and unit-tested
+libraries/            shared symbols and footprints
+boards/rev1/, firmware/taxelscan/, boards/v2-*/   earlier boards and their firmware
 ```
 
-Two folders are deliberately absent from the repository and listed in
-`.gitignore`: `tmp/`, the scratch area the rev-3 routing tools use (it holds a
-few hundred megabytes of router runs and a private copy of their Python
-dependencies), and `boards/rev3/backups/`, the dated recovery points the rev-3
-notes refer to. Both stay on the machine the work was done on. Everything the
-notes describe as a result is in the tree.
-
-## Quick start (rev-1 hardware)
-
-```bash
-cd firmware
-arduino-cli compile --fqbn rp2040:rp2040:seeed_xiao_rp2350 --build-path "$PWD/build" taxelscan
-arduino-cli upload -p COM10 --fqbn rp2040:rp2040:seeed_xiao_rp2350 --input-dir "$PWD/build" taxelscan
-python tools/taxelscan_live.py --port COM10
-```
-
-The viewer serves the live heatmap at `http://localhost:8000`.
-
-**Do not flash this firmware to a rev-3 board.** It drives pins that are the
-address straps and the power-fault input there, and reads an internal ADC the
-rev-3 board does not use. [firmware/rev3/PLAN.md](firmware/rev3/PLAN.md) is the
-specification for the rev-3 firmware, which has not been written yet.
-
-## Ordering a rev-3 board
-
-`boards/rev3/fab/` is the JLCPCB package: `rev3-gerbers.zip`, drill files, and
-two assembly sets (`rev3-bom.csv` + `rev3-cpl.csv` for boards in the middle of
-a harness, the `-end` pair for the two terminated boards at its ends).
-`fab/ORDER-NOTES.txt` lists the options to select, in particular epoxy-filled
-and capped vias and Standard PCBA, and what to check in the placement preview.
-`boards/rev3/README.md` has the design rationale, `AUDIT.md` the verification
-record, and `ROUTING_STATUS.md` what is still open (hot-plug overshoot is
-unmeasured; the front end has not been measured on hardware).
+`tmp/` and `boards/rev3/backups/` are local working folders and are not in the
+repository.
 
 ## Credits and license
 
-The sensor pads, electrode geometry, and original readout topology come from
-the FlexiTac project. TaxelScan is an independent reader board and firmware
-implementation. The repository is MIT licensed; see [LICENSE](LICENSE).
+Sensor pads, electrode geometry and the original readout topology come from the
+FlexiTac project. MIT licensed; see [LICENSE](LICENSE).

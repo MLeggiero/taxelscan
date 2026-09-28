@@ -23,9 +23,10 @@ Check in the placement preview before confirming
       pins 1/6 carry D+, 3/4 D-, 5 VBUS, 2 GND - a wrong turn shorts
       D+ to VBUS.
 
-Low stock on 17 September: J1/J2 C597985 (44), U8 C580457 (23),
-  R23/R24 C852682 (2800), R21/R22 C852830 (3700), U13 C132554 (902),
-  R34 C149916 (550). On 21 September: D5 C15999 (8345), R38 C861215
-  (6180); C9/C10/C39/C46 C3039694 shows 0 on LCSC's own site but 98k
-  in JLCPCB's assembly stock, which is the one that matters. Re-check
-  on the order day.
+JLCPCB stock on 28 September 2026, parts needed per board in brackets:
+  D1/D2 C179428 PMEG2005AEA: 9 (2) = 4 boards. Same-package alternative:
+      Nexperia PMEG3005AEA,115 C513110 (30 V, 0.5 A, SOD-323), 1341 in stock.
+  R18 C852573 180k: 9 (1) = 9 boards. Alternative: TE CPF0402B180KE
+      C2075256 (thin film, 0.1 %), 303 in stock.
+  U8 C580457 LTC1865LIMS: 23 (1). J1/J2 C597985 FH12: 40 (2) = 20 boards.
+  Every other line has stock for at least 50 boards. Re-check on the order day.
