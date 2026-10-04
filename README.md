@@ -10,8 +10,8 @@ host through the first board's USB-C port.
 >
 > **4 Oct 2026:** [`boards/rev4/`](boards/rev4/README.md) is the same board
 > without the external LTC1865L: both banks on the RP2354A's internal 12-bit
-> ADC, about $14.60 of parts instead of $33.08, routed and DRC-clean. The
-> numbers below are rev-3's.
+> ADC, about $14.60 of parts instead of $33.08, re-routed with straight
+> 0 / 45 / 90-degree tracks, DRC-clean. The numbers below are rev-3's.
 
 | Top | Bottom |
 |:---:|:---:|

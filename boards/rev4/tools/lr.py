@@ -6,7 +6,8 @@ grid router are looked up per platform, and scratch files go to <checkout>/tmp
 (git-ignored).
 
 Obstacles come from pcbnew with real pad polygons. Clearance follows the board:
-0.15 mm, 0.10 mm when both items intersect a rule area (rev3.kicad_dru),
+0.15 mm, 0.10 mm when both items intersect a rule area (rev3.kicad_dru), a
+pad's own local clearance where it has one (the fiducials' 0.6 mm),
 0.25 mm copper-to-hole, 0.25 mm hole-to-hole, 0.22 mm copper-to-edge. Paths are
 searched on a fine grid by tmp/grid_route.exe, simplified by line of sight, and
 every emitted segment and via is re-checked exactly with shapely before it goes
@@ -68,7 +69,10 @@ class Model:
                 areas.append(polyset(z.Outline()))
         self.area = unary_union(areas) if areas else Polygon()
         e = b.GetBoardEdgesBoundingBox()
-        self.edge = (mm(e.GetX()), mm(e.GetY()), mm(e.GetRight()), mm(e.GetBottom()))
+        # the box takes in the outline's line width, but KiCad measures copper to
+        # edge from the line's centre: 0.05 mm closer for the 0.1 mm outline
+        hw = max([mm(d.GetWidth()) for d in b.GetDrawings() if d.GetLayer() == K.Edge_Cuts] or [0.0]) / 2
+        self.edge = (mm(e.GetX()) + hw, mm(e.GetY()) + hw, mm(e.GetRight()) - hw, mm(e.GetBottom()) - hw)
         self.items = []
         for f in b.GetFootprints():
             for p in f.Pads():
@@ -91,9 +95,10 @@ class Model:
                     geom = polyset(p.GetEffectivePolygon(lay0, K.ERROR_OUTSIDE))   # never smaller than the real copper
                 if geom is None and hole is None:
                     continue
+                lc = p.GetLocalClearance()          # the fiducials' 0.6 mm; None on every other pad
                 self.items.append(dict(kind="pad", net=p.GetNetname(), lay=lays, geom=geom, hole=hole,
                                        uuid=p.m_Uuid.AsString(), ref="%s.%s" % (f.GetReference(), p.GetNumber()),
-                                       xy=(hx, hy)))
+                                       xy=(hx, hy), clr=mm(lc) if lc else 0.0))
         for t in b.GetTracks():
             n, u = t.GetNetname(), t.m_Uuid.AsString()
             if t.Type() == K.PCB_VIA_T:
@@ -148,10 +153,16 @@ class Model:
             it = its[k]
             if it["uuid"] in ignore or (net and it["net"] == net):
                 continue
-            need = FINE if (ina and it["in_area"]) else RULE
+            need = max(FINE if (ina and it["in_area"]) else RULE, it.get("clr", 0.0))
             d = g.distance(it["geom"])
             if d < need - 1e-4:
                 bad.append((round(d, 4), need, it["net"], it["ref"], it["uuid"]))
+        for k in tree.query(g.buffer(0.62)):          # a pad's own clearance may reach further than RULE
+            it = its[k]
+            if it.get("clr", 0.0) > RULE + 0.02 and it["uuid"] not in ignore and not (net and it["net"] == net):
+                d = g.distance(it["geom"])
+                if RULE + 0.02 - 1e-4 <= d < it["clr"] - 1e-4:
+                    bad.append((round(d, 4), it["clr"], it["net"], it["ref"], it["uuid"]))
         hs, ht = self.holes
         for k in ht.query(g.buffer(HOLE + 0.02)):
             it = hs[k]
@@ -175,18 +186,18 @@ class Model:
         seen = set()
         for l in ALLCU:
             its, tree = self.by_layer[l]
-            for k in tree.query(g.buffer(0.5)):
+            for k in tree.query(g.buffer(0.7)):
                 it = its[k]
                 if it["uuid"] in ignore or it["uuid"] in seen or (net and it["net"] == net):
                     continue
                 seen.add(it["uuid"])
-                need = FINE if (ina and it["in_area"]) else RULE
+                need = max(FINE if (ina and it["in_area"]) else RULE, it.get("clr", 0.0))
                 d = g.distance(it["geom"])
                 if d < need - 1e-4:
                     bad.append((round(d, 4), need, it["net"], it["ref"], it["uuid"]))
                 dh = h.distance(it["geom"])
-                if dh < HOLE - 1e-4:
-                    bad.append((round(dh, 4), HOLE, it["net"], it["ref"] + "(to hole)", it["uuid"]))
+                if dh < max(HOLE, it.get("clr", 0.0)) - 1e-4:
+                    bad.append((round(dh, 4), max(HOLE, it.get("clr", 0.0)), it["net"], it["ref"] + "(to hole)", it["uuid"]))
         hs, ht = self.holes
         for k in ht.query(g.buffer(0.6)):
             it = hs[k]
@@ -247,11 +258,12 @@ class Model:
                     if not er.is_empty:
                         stamp(ow, er)
                     continue
+                c = it.get("clr", 0.0)
                 if it["in_area"]:
-                    stamp(blk, it["geom"].buffer(FINE + w / 2 + SAFE, 8), ina_t)
-                    stamp(blk, it["geom"].buffer(RULE + w / 2 + SAFE, 8), ~ina_t)
+                    stamp(blk, it["geom"].buffer(max(FINE, c) + w / 2 + SAFE, 8), ina_t)
+                    stamp(blk, it["geom"].buffer(max(RULE, c) + w / 2 + SAFE, 8), ~ina_t)
                 else:
-                    stamp(blk, it["geom"].buffer(RULE + w / 2 + SAFE, 8))
+                    stamp(blk, it["geom"].buffer(max(RULE, c) + w / 2 + SAFE, 8))
             hs, ht = self.holes
             for k in ht.query(wb):
                 it = hs[k]
@@ -272,11 +284,12 @@ class Model:
                 if it["uuid"] in ignore or it["uuid"] in done or (net and it["net"] == net):
                     continue
                 done.add(it["uuid"])
+                c = it.get("clr", 0.0)
                 if it["in_area"]:
-                    stamp(vb, it["geom"].buffer(max(vs / 2 + FINE, vd / 2 + HOLE) + SAFE, 8), ina_v)
-                    stamp(vb, it["geom"].buffer(max(vs / 2 + RULE, vd / 2 + HOLE) + SAFE, 8), ~ina_v)
+                    stamp(vb, it["geom"].buffer(max(vs / 2 + max(FINE, c), vd / 2 + max(HOLE, c)) + SAFE, 8), ina_v)
+                    stamp(vb, it["geom"].buffer(max(vs / 2 + max(RULE, c), vd / 2 + max(HOLE, c)) + SAFE, 8), ~ina_v)
                 else:
-                    stamp(vb, it["geom"].buffer(max(vs / 2 + RULE, vd / 2 + HOLE) + SAFE, 8))
+                    stamp(vb, it["geom"].buffer(max(vs / 2 + max(RULE, c), vd / 2 + max(HOLE, c)) + SAFE, 8))
         hs, ht = self.holes
         for k in ht.query(wb):
             it = hs[k]

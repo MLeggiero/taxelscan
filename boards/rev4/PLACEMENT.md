@@ -141,7 +141,7 @@ connector positions are rev-3's.
 ### 7. U8's old block — left open
 
 x 148–153, y 119–130 is now empty copper over the ground plane. Nothing on the
-board wants to move into it; it is routing room, and the re-route uses it (see
+board wants to move into it; it is routing room, and the routing uses it (see
 ROUTING_STATUS.md).
 
 ## What did not move
@@ -149,3 +149,9 @@ ROUTING_STATUS.md).
 Everything else: 97 of the 104 parts on a middle board are at rev-3's exact
 position and rotation. One fiducial, FID2, moved 0.11 mm to keep its 0.6 mm
 clearance from the re-routed `AMP_A`; ROUTING_STATUS.md has the detail.
+
+The board was afterwards re-routed from scratch for straight 0 / 45 / 90-degree
+routing (ROUTING_STATUS.md). That kept this placement exactly - every footprint
+and pad at the same position and rotation, to the nanometre - and changed one
+thing that touches a part: R27.2's ground via now sits in its pad, to let the
+re-laid `BUS_N` pass over R27.

@@ -14,9 +14,9 @@ positions, on rev-3's 60.3 × 35.9 mm outline.
 | `gen_schematic.py`, `layout_schematic.py`, `make_fab.py`, `kicad_tools.py` | the schematic generator and its drawing, the JLCPCB exporter, pcbnew helpers — rev-3's, retargeted |
 | `fab/` | the JLCPCB package from `make_fab.py`: gerbers, drills, `rev4-gerbers.zip`, middle-board and end-board BOM/CPL sets, drawings, order and stackup notes |
 | `PLACEMENT.md` | the placement analysis: what removing U8 freed, every move considered, which were made and why |
-| `ROUTING_STATUS.md` | the routed board: what was re-routed, DRC, parity, plane health, open items |
+| `ROUTING_STATUS.md` | the routed board: how it was re-routed for straight routing, DRC, parity, plane health, open items |
 | `tools/` | the board-change, placement and routing scripts for this revision, and rev-3's router ported to run anywhere (see `tools/README.md`) |
-| `pcb_top.png`, `pcb_rev3_vs_rev4.png` | renders |
+| `pcb_top.png`, `pcb_rev3_vs_rev4.png`, `pcb_routing_before_after.png` | renders: the board, the ADC corner against rev-3, the routing before and after the re-route |
 
 The design record for everything this revision did not touch — the front-end
 reasoning, the USB power design, the audits, the routing history — is in
@@ -73,6 +73,16 @@ and rejected (moving U7 west, and re-compacting the outline for 0.9 mm).
 **Silkscreen.** The back reads `TaxelScan v4`, so the two revisions can be
 told apart on the bench; nothing else on either silkscreen changed.
 
+**Routing.** Re-routed from scratch so that every track runs at 0, 45 or 90
+degrees: rev-3's routing, which the first rev-4 kept, had 67 % of its copper at
+arbitrary angles; now 0.2 % (5.7 mm of plane ties). Freerouting did the bulk;
+the nets it cannot be trusted with - the RS-485 pairs, USB_D, the ADC corner,
+VCORE, VREG_LX, the crystal - were laid by the board's own exact-geometry
+router, octilinear. Nothing routes on In2 any more (it had 125 mm), so the
++3.3 V plane is one piece; the 5 V rails are 0.3 mm throughout and VCORE 0.2 mm.
+`ROUTING_STATUS.md` has the method and every number; `pcb_routing_before_after.png`
+shows it.
+
 **Rules.** The `U8_escape` rule area and its two custom rules are gone. Six
 spots near R22 and D4 had been legal only at that area's 0.10 mm; R22 moved,
 and the `USB_ILIM` / `USB_ILIM_LOW` segments were re-routed at the board's
@@ -120,6 +130,7 @@ and the `USB_ILIM` / `USB_ILIM_LOW` segments were re-routed at the board's
     tools/eco_rev4.py              rev3.kicad_pcb -> rev4.kicad_pcb: rip, delete, re-pin
     tools/place_rev4.py            the seven moves, each placed and routed
     tools/route_rev4.py            AMP_A/B, +5V, USB_CC_OUT1/2, the ILIM fixes, FID2; prune
+    tools/freeroute_rev4.py all    the re-route: strip, pre-route, freerouting, import, finish
     tools/finalize_rev4.py         install, then KiCad DRC with zones refilled + schematic parity
     ./make_fab.py                  fab/
 
@@ -128,8 +139,9 @@ and the `USB_ILIM` / `USB_ILIM_LOW` segments were re-routed at the board's
 | DRC, zones refilled | 0 unconnected, 0 copper errors; rev-3's same 5 silkscreen warnings |
 | Schematic parity | every net's pads match; the only items are rev-3's net-name prefix and J5's two open SBU pins |
 | ERC | 0 errors |
-| +3.3 V plane (In2) | 2 pieces, main 1740 mm² holding 33 of 34 vias (rev-3: 7 pieces, 1665 mm², 27 of 35) |
-| GND plane (In1) | one piece, 1850 mm² |
+| Routing | 5.7 of 2394 mm (0.2 %) off 0 / 45 / 90 degrees, all of it plane ties (first rev-4: 67 %); nothing on In2 |
+| +3.3 V plane (In2) | 1 piece, 1800 mm², all 34 vias (first rev-4: 2 pieces, 1740 mm², 33 of 34; rev-3: 7 pieces, 1665 mm², 27 of 35) |
+| GND plane (In1) | one piece, 1847 mm², all 112 vias |
 | Fab package | 70 BOM lines, every one with an LCSC number; 104 / 106 parts in the CPLs; both planes in the gerbers |
 | Firmware pin map | `firmware/rev3_power` native test passes for rev-3 and rev-4 |
 
