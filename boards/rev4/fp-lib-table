@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "FlexiTac")(type "KiCad")(uri "${KIPRJMOD}/../../libraries/FlexiTac.pretty")(options "")(descr "Shared: the 32-way FFC footprint rev-1 was built with"))
+)

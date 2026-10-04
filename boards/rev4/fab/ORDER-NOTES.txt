@@ -1,0 +1,33 @@
+JLCPCB order settings for rev-4 (rev-3's, checked 17 September 2026, less U8/C8/R10/C10/C26)
+
+PCB
+  Layers 4, thickness 1.6 mm, stackup JLC04161H-7628 (inner 0.5 oz)
+  Outer copper 1 oz; via 0.3 mm / 0.45 mm or larger (no surcharge)
+  Via Covering: Epoxy Filled & Capped  <- required, see STACKUP-NOTES
+  Min trace/space 0.10 mm (above the 3.5 mil surcharge band)
+
+Assembly
+  Standard PCBA (0201 parts; Economic stops at 0402), top side only
+  Middle boards: rev4-bom.csv + rev4-cpl.csv (no R11/R12)
+  The two end boards: rev4-bom-end.csv + rev4-cpl-end.csv
+  JLCPCB adds rails; J1/J2 overhang the top edge by 1.5 mm, so expect
+  an SMT fixture fee. J6 is through-hole (or leave it for hand fit).
+
+Check in the placement preview before confirming
+  L1: the polarity dot must sit on pad 1, the VCORE end (towards U9's
+      DVDD side), per the RP2350 datasheet section 6.3.8.
+  U9, U12, U14: their pin-1 marks touch neighbouring pads and may be
+      clipped from the silkscreen; check pin 1 against the Fab drawing.
+  D1-D5, D3 (LED), Q1, U1-U7, U10, U11, U13, Y1: pin 1 / cathode.
+  D5 (USBLC6-2P6, SOT-666): pin 1 is the corner nearest J5's D+ pads;
+      pins 1/6 carry D+, 3/4 D-, 5 VBUS, 2 GND - a wrong turn shorts
+      D+ to VBUS.
+
+JLCPCB stock on 28 September 2026, parts needed per board in brackets:
+  D1/D2 C179428 PMEG2005AEA: 9 (2) = 4 boards. Same-package alternative:
+      Nexperia PMEG3005AEA,115 C513110 (30 V, 0.5 A, SOD-323), 1341 in stock.
+  R18 C852573 180k: 9 (1) = 9 boards. Alternative: TE CPF0402B180KE
+      C2075256 (thin film, 0.1 %), 303 in stock.
+  J1/J2 C597985 FH12: 40 (2) = 20 boards. (rev-3's low-stock U8, the
+      LTC1865LIMS, is not on this board.)
+  Every other line has stock for at least 50 boards. Re-check on the order day.

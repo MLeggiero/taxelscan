@@ -7,6 +7,11 @@ host through the first board's USB-C port.
 > **Status, 28 Sep 2026:** designed and verified in KiCad, fabrication and
 > assembly files ready, not yet built. Firmware not yet written. Every number
 > below is a design value or a datasheet value, not a measurement.
+>
+> **4 Oct 2026:** [`boards/rev4/`](boards/rev4/README.md) is the same board
+> without the external LTC1865L: both banks on the RP2354A's internal 12-bit
+> ADC, about $14.60 of parts instead of $33.08, routed and DRC-clean. The
+> numbers below are rev-3's.
 
 | Top | Bottom |
 |:---:|:---:|
@@ -128,6 +133,7 @@ input on v3.
 
 ```text
 boards/rev3/          v3 KiCad project, netlist generator, fab/ package, design notes
+boards/rev4/          rev-3 without the external ADC: project, fab/ package, placement analysis
 firmware/rev3/        v3 firmware specification
 firmware/rev3_power/  USB power policy, written and unit-tested
 libraries/            shared symbols and footprints
