@@ -5,6 +5,11 @@ provides the RP2354A/Pico SDK adapter with a 1 ms hardware timer and TinyUSB
 configuration checking. This directory does not replace the rev1 scanning
 application or implement rev3 ADC/RS485 acquisition.
 
+The pin map defaults to the rev-3 board. For rev-4 (`boards/rev4`, the same
+circuit without the external ADC) define `TAXELSCAN_BOARD_REV=4`: the TUSB320's
+OUT1/OUT2 move from GPIO27/29 to GPIO18/19, because GPIO27 and GPIO29 are ADC
+inputs there.
+
 Add `usb_power_pico.cpp` to the rev3 Pico SDK executable and link `pico_stdlib`,
 `hardware_gpio`, `hardware_sync`, and `tinyusb_device`. Initialize it on core 0
 after initializing TinyUSB:
@@ -47,6 +52,8 @@ The policy tests need only a C++17 compiler:
 ```sh
 c++ -std=c++17 -Wall -Wextra -Werror test_usb_power.cpp -o test_usb_power
 ./test_usb_power
+c++ -std=c++17 -Wall -Wextra -Werror -DTAXELSCAN_BOARD_REV=4 test_usb_power.cpp -o test_usb_power4
+./test_usb_power4
 ```
 
 They cover all 32 CC/USB-grant/suspend combinations, source downgrades,

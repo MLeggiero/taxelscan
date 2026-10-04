@@ -3,6 +3,14 @@
 #include <cstdio>
 #include <initializer_list>
 using namespace taxelscan;
+// The pin map per board revision, as boards/rev3/gen_rev3.py and
+// boards/rev4/gen_rev4.py assert it from the netlist side.
+#if TAXELSCAN_BOARD_REV >= 4
+static_assert(USB_CC_OUT1 == 18 && USB_CC_OUT2 == 19, "rev-4 CC status pins");
+#else
+static_assert(USB_CC_OUT1 == 27 && USB_CC_OUT2 == 29, "rev-3 CC status pins");
+#endif
+static_assert(USB_BUS_EN == 24 && USB_ILIM_HI == 0 && USB_PWR_FAULT == 23, "USB power pins");
 int main() {
     // All CC advertisements x USB grants x suspend states, from reset.
     for (int cc=0; cc<4; ++cc) for (unsigned ma : {0u,100u,250u,500u})

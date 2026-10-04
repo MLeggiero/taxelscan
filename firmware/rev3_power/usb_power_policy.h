@@ -1,11 +1,25 @@
 #pragma once
 #include <stdint.h>
 
+// Board revision the pin map is for: 3 (the default) or 4. rev-4 is rev-3
+// without the LTC1865L; it reads both sense banks on the RP2354A's own ADC, so
+// GPIO27 (and GPIO28 or 29) carry analog inputs and the TUSB320's two status
+// outputs moved to GPIO18/19, the pins rev-3's SPI bus used. Build rev-4
+// firmware with -DTAXELSCAN_BOARD_REV=4; boards/rev4/gen_rev4.py checks the map.
+#ifndef TAXELSCAN_BOARD_REV
+#define TAXELSCAN_BOARD_REV 3
+#endif
+
 namespace taxelscan {
 constexpr unsigned USB_BUS_EN = 24;   // rev-3 layout 2026-09-10: moved off the QFN bottom row (was 12)
 constexpr unsigned USB_ILIM_HI = 0;   // was 13
+#if TAXELSCAN_BOARD_REV >= 4
+constexpr unsigned USB_CC_OUT1 = 18;  // rev-4: GPIO27 is ADC_A
+constexpr unsigned USB_CC_OUT2 = 19;  // rev-4: GPIO29 is an ADC input too
+#else
 constexpr unsigned USB_CC_OUT1 = 27;  // was 14
 constexpr unsigned USB_CC_OUT2 = 29;  // was 15
+#endif
 constexpr unsigned USB_PWR_FAULT = 23;
 constexpr unsigned USB_CONFIGURATION_MA = 500;
 
