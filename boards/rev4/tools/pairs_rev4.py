@@ -121,6 +121,10 @@ def per_layer(m, n):
 
 def move_r27_tie(m, log):
     """R27.2's ground via sat where BUS_N passes over R27: it goes into the pad."""
+    pad = m.pad("R27", "2")
+    if any(it["kind"] == "via" and it["net"] == "GND" and pad["geom"].contains(shapely.Point(it["xy"])) for it in m.items):
+        log("R27.2: ground tie already in the pad")
+        return
     groups = st.stub_groups(m, "GND")
     mine = [(g, touch) for g, touch in groups if any(e["kind"] == "pad" and e["ref"] == "R27.2" for e in touch)]
     if len(mine) != 1:

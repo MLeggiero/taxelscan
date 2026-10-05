@@ -1,4 +1,7 @@
-"""fr_finish.py in.kicad_pcb out.kicad_pcb [--rounds N] [--fixed NET,...] - finish a freerouting result.
+"""fr_finish.py in.kicad_pcb out.kicad_pcb [--rounds N] [--fixed NET,...] [--tidy-only] - finish a freerouting result.
+
+--tidy-only: the board is finished already; only the tidy and detour passes,
+the prune and the widening below.
 
 ses_import.py brings freerouting's session back onto the board; what it leaves
 is finished here, with the same exact-geometry model and the octilinear router
@@ -16,7 +19,7 @@ is finished here, with the same exact-geometry model and the octilinear router
      queued again. Any signal freerouting routed may be ripped; the planes'
      ties, the --fixed nets and SENSITIVE (below) may not. Widths are the
      classes' (dsn_prep.CLASSES); SENSE / GAIN / ADC / RAIL_MON stay on F.Cu;
-     In2 is a last resort.
+     In2 is a last resort, tried only in the last round.
   3. rr2.prune: what KiCad calls dangling goes, the DRC runs again.
 
 Steps 1-3 repeat until the DRC has no copper violation and nothing open.
@@ -34,6 +37,17 @@ And the op-amp outputs: AMP_A and AMP_B (U7 to the ADC cells' 51-ohm
 resistors) may leave F.Cu - they have to cross SENSE_B - but freerouting put
 32 mm of them on B.Cu, over the +3.3 V plane instead of ground. Both are
 redrawn with B.Cu costed everywhere, so they use it only to cross.
+
+Then a tidy pass, twice over: every signal net that has a via, the pre-routed
+ones, the op-amp outputs and +5V_USB (with its pre-laid VBUS ties) aside, is
+taken off alone and routed again by rr3 with everything else in place. The new
+routing stays if it saves a via and is at most a quarter longer, or, with as
+many vias, is 1 mm shorter; otherwise the net goes back exactly as it was. The
+rip-up loop leaves detours behind - nets routed round copper that was later
+ripped - and this takes them out. A short net (pads' spanning tree under 15 mm)
+still more than twice that long plus 3 mm is ripped with one or two of the
+nets whose copper lies between its pads, and all are routed again, it first;
+kept if the lot is 2 mm shorter with no more vias.
 
 Last, the widths: freerouting routed every net that touches the RP2354A or the
 TUSB320 at 0.10 mm, end to end (one width per net class), where only the
@@ -53,18 +67,22 @@ down here, octilinear, and whatever they cross is re-routed around them.
 """
 import argparse
 import collections
+import itertools
 import math
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import shapely
 import lr
 import rr2
 import rr3
 import dsn_prep
+import straighten_rev4 as st
 
 PLANE = ("GND", "+3.3V")
-SENSITIVE = {"VREG_LX", "VREG_AVDD", "SW_NODE", "XIN", "XOUT", "XOUT_MCU", "USB_BUS_SW"}
+SENSITIVE = {"VREG_LX", "VREG_AVDD", "SW_NODE", "XIN", "XOUT", "XOUT_MCU", "USB_BUS_SW",
+             "+5V_USB"}     # +5V_USB carries D5.5's and J5's pre-laid VBUS ties (preroute_rev4.vbus_d5 / vbus_j5)
 WIDEN = {"VCORE": (0.25, 0.2, 0.15)}
 COPPER = {"clearance", "hole_clearance", "copper_edge_clearance", "track_width", "shorting_items",
           "tracks_crossing", "solder_mask_bridge", "hole_to_hole", "via_diameter", "annular_width",
@@ -205,10 +223,82 @@ def offenders(m, d, keep):
     return out
 
 
+def tidy(m, log, skip, passes=2):
+    """Each signal net with a via, ripped alone and routed again; kept only if better."""
+    for p in range(passes):
+        saved = redrawn = 0
+        for net in sorted({it["net"] for it in m.items if it["kind"] == "via"} - set(skip)):
+            items = st.net_copper(m, net)
+            v0, L0 = sum(1 for it in items if it["kind"] == "via"), st.jag_of(items)[0]
+            snap = st.snapshot(items)
+            m.remove([it["uuid"] for it in items])
+            m.index()
+            ok, _ = rr3.connect(m, net, width_of(m, net), layers_of(net), margin=1.5)
+            new = st.net_copper(m, net)
+            v1, L1 = sum(1 for it in new if it["kind"] == "via"), st.jag_of(new)[0]
+            if ok and ((v1 < v0 and L1 <= 1.25 * L0 + 1.0) or (v1 == v0 and L1 < L0 - 1.0)):
+                log("  tidy %-14s %5.1f -> %5.1f mm, vias %d -> %d" % (net, L0, L1, v0, v1))
+                saved += v0 - v1
+                redrawn += 1
+                continue
+            m.remove([it["uuid"] for it in new])
+            m.index()
+            st.restore(m, net, snap)
+        log("tidy, pass %d: %d net(s) redrawn, %d via(s) fewer" % (p + 1, redrawn, saved))
+        if not redrawn:
+            break
+
+
+def mst(pts):
+    """Length of the minimum spanning tree over the points."""
+    if len(pts) < 2:
+        return 0.0
+    left, tot = set(range(1, len(pts))), 0.0
+    d = {i: math.dist(pts[0], pts[i]) for i in left}
+    while left:
+        j = min(left, key=d.get)
+        tot += d[j]
+        left.remove(j)
+        for i in left:
+            d[i] = min(d[i], math.dist(pts[j], pts[i]))
+    return tot
+
+
+def detours(m, log, skip, short=15.0):
+    """A short net routed far round, ripped with one or two of the nets between its pads; kept only if better."""
+    def stat(nets):
+        its = [it for n in nets for it in st.net_copper(m, n)]
+        return sum(1 for it in its if it["kind"] == "via"), st.jag_of(its)[0]
+    for net in sorted({it["net"] for it in m.items if it["kind"] == "track"} - set(skip)):
+        pads = [it for it in m.items if it["net"] == net and it["kind"] == "pad"]
+        t = mst([p["xy"] for p in pads])
+        if t > short or st.jag_of(st.net_copper(m, net))[0] <= 2.0 * t + 3.0:
+            continue
+        bx = shapely.box(*shapely.union_all([rr2.geo(p) for p in pads]).bounds).buffer(0.5)
+        inside = collections.Counter()
+        for it in m.items:
+            if it["kind"] in ("track", "via") and it["net"] not in skip and it["net"] != net:
+                g = rr2.geo(it)
+                if g.intersects(bx):
+                    inside[it["net"]] += g.intersection(bx).area
+        top = [n for n, _ in inside.most_common(4)]
+        for group in [[net] + list(c) for k in (1, 2) for c in itertools.combinations(top, k)]:
+            (v0, L0), snaps = stat(group), {n: st.snapshot(st.net_copper(m, n)) for n in group}
+            m.remove([it["uuid"] for n in group for it in st.net_copper(m, n)])
+            m.index()
+            ok = all([rr3.connect(m, n, width_of(m, n), layers_of(n), margin=3.0)[0] for n in group])
+            v1, L1 = stat(group)
+            if ok and v1 <= v0 and L1 < L0 - 2.0:
+                log("  detour %-12s with %s: %.1f mm %d via -> %.1f mm %d via" % (net, ", ".join(group[1:]), L0, v0, L1, v1))
+                break
+            m.remove([it["uuid"] for n in group for it in st.net_copper(m, n)])
+            m.index()
+            for n in group:
+                st.restore(m, n, snaps[n])
+
+
 def widen(m, log, skip):
     """Widen 0.10 mm tracks where the exact check allows; returns {uuid: old width}."""
-    import shapely
-    from shapely.geometry import box
     targets = {}
     for net in {it["net"] for it in m.items if it["kind"] == "track"} - set(skip):
         if net in WIDEN:
@@ -249,19 +339,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src")
     ap.add_argument("dst")
-    ap.add_argument("--rounds", type=int, default=5)
+    ap.add_argument("--rounds", type=int, default=8)
     ap.add_argument("--fixed", default="")
+    ap.add_argument("--tidy-only", action="store_true")
     a = ap.parse_args()
     fixed = {n for n in a.fixed.split(",") if n}
     keep = set(PLANE) | fixed
     lr.PRO_REF = os.path.join(lr.ROOT, "tmp", "rev4_ref.kicad_pro")
     log = lambda s: print(s, flush=True)
     m = lr.Model(a.src)
-    if not set(CORNER) <= fixed:
+    if not set(CORNER) <= fixed and not a.tidy_only:
         draw_corner(m, log)
     m.save(a.dst)
     d, c = lr.drc(a.dst, "frfin")
-    for r in range(a.rounds):
+    for r in range(0 if a.tidy_only else a.rounds):
         bad = offenders(m, d, keep)
         nets_bad = collections.Counter(m.uuid[u]["net"] for u in bad)
         log("round %d: DRC unconnected %d, copper %d; taking off %d item(s) of %s"
@@ -275,7 +366,8 @@ def main():
         if not must and not bad:
             break
         res = rr3.rrr3(m, must, protect=keep | SENSITIVE, layers_fn=layers_of, width_fn=lambda n: width_of(m, n), log=log,
-                       fallback_layers=fallback_of, max_iter=40 + 12 * len(must))
+                       fallback_layers=fallback_of if r == a.rounds - 1 else None,   # In2 only in the last round
+                       max_iter=40 + 12 * len(must))
         # what failed at the class width gets one more try at 0.10 / 0.15 mm
         for n in sorted(res["left"]):
             w = width_of(m, n)
@@ -287,9 +379,12 @@ def main():
         if not d["unconnected_items"] and not any(k in COPPER for k in c):
             break
     if not d["unconnected_items"] and not any(k in COPPER for k in c):
-        if not crystal(m, log, keep):
-            log("crystal could not be redrawn")
-        amp(m, log, keep)
+        if not a.tidy_only:
+            if not crystal(m, log, keep):
+                log("crystal could not be redrawn")
+            amp(m, log, keep)
+        tidy(m, log, keep | set(AMP) | {"+5V_USB"})
+        detours(m, log, keep | set(AMP) | SENSITIVE)
     d, c = rr2.prune(m, a.dst, "frfin", log=log)
     if not d["unconnected_items"] and not any(k in COPPER for k in c):
         old = widen(m, log, fixed | set(PLANE))

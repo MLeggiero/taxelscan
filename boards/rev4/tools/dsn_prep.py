@@ -206,15 +206,18 @@ def main(src, dst, plane_keepouts=False, fid=False, fixed=()):
     if fid:
         s = fid_keepouts(s, report)
 
-    # 3. the plane nets' copper is fixed
+    # 3. the copper already on the board is fixed: the plane nets' ties, and with
+    # --plane-keepouts whatever is left in the wiring after the planes and the
+    # fixed nets went - copper laid on purpose for a net freerouting still
+    # routes (preroute_rev4's VBUS ties on +5V_USB, at D5.5 and across J5)
     def protect(m):
         blk = m.group(0)
         net = re.search(r"\(net ([^)]*)\)", blk).group(1).strip('"')
-        return blk.replace("(type route)", "(type protect)") if net in PROTECT_NETS else blk
+        return blk.replace("(type route)", "(type protect)") if (net in PROTECT_NETS or plane_keepouts) else blk
     s, nw = re.subn(r"\(wire (?:\([^()]*\)|[^()])*?\(net [^)]*\)\s*\(type route\)\)", protect, s)
     s, nv = re.subn(r"\(via \"[^\"]*\" [-\d. ]+\s*\(net [^)]*\)\s*\(type route\)\)", protect, s)
     np_ = s.count("(type protect)")
-    report.append("protected %d GND / +3.3V wire and via item(s)" % np_)
+    report.append("protected %d pre-placed wire and via item(s)" % np_)
 
     # 4. classes
     nets = nets_of(s)

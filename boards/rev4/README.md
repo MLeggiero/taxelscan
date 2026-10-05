@@ -76,10 +76,13 @@ told apart on the bench; nothing else on either silkscreen changed.
 **Routing.** Re-routed from scratch so that every track runs at 0, 45 or 90
 degrees: rev-3's routing, which the first rev-4 kept, had 67 % of its copper at
 arbitrary angles; now 0.2 % (5.7 mm of plane ties). Freerouting did the bulk;
-the nets it cannot be trusted with - the RS-485 pairs, USB_D, the ADC corner,
-VCORE, VREG_LX, the crystal - were laid by the board's own exact-geometry
-router, octilinear. Nothing routes on In2 any more (it had 125 mm), so the
-+3.3 V plane is one piece; the 5 V rails are 0.3 mm throughout and VCORE 0.2 mm.
+the nets it cannot be trusted with - the RS-485 pairs, both USB pairs (the
+USB-C side bridged across J5's interleaved pins and run side by side), the ADC
+corner, VCORE, VREG_LX / SW_NODE and J5's VBUS pins - were laid first by the
+board's own exact-geometry router, octilinear, which also finished and tidied
+what Freerouting left. Nothing routes on In2 any more (it had 125 mm), so the
++3.3 V plane is one piece; the 5 V rails are 0.3 mm (bar D5.5's 3 mm VBUS tie
+at 0.15 mm) and VCORE 0.2 mm.
 `ROUTING_STATUS.md` has the method and every number; `pcb_routing_before_after.png`
 shows it.
 
@@ -139,9 +142,9 @@ and the `USB_ILIM` / `USB_ILIM_LOW` segments were re-routed at the board's
 | DRC, zones refilled | 0 unconnected, 0 copper errors; rev-3's same 5 silkscreen warnings |
 | Schematic parity | every net's pads match; the only items are rev-3's net-name prefix and J5's two open SBU pins |
 | ERC | 0 errors |
-| Routing | 5.7 of 2394 mm (0.2 %) off 0 / 45 / 90 degrees, all of it plane ties (first rev-4: 67 %); nothing on In2 |
-| +3.3 V plane (In2) | 1 piece, 1800 mm², all 34 vias (first rev-4: 2 pieces, 1740 mm², 33 of 34; rev-3: 7 pieces, 1665 mm², 27 of 35) |
-| GND plane (In1) | one piece, 1847 mm², all 112 vias |
+| Routing | 5.7 of 2311 mm (0.2 %) off 0 / 45 / 90 degrees, all of it plane ties (first rev-4: 67 %); nothing on In2; 165 signal vias; the USB-C data pair 2 / 2 vias, side by side |
+| +3.3 V plane (In2) | 1 piece, 1813 mm², all 34 vias (first rev-4: 2 pieces, 1740 mm², 33 of 34; rev-3: 7 pieces, 1665 mm², 27 of 35) |
+| GND plane (In1) | one piece, 1860 mm², all 112 vias |
 | Fab package | 70 BOM lines, every one with an LCSC number; 104 / 106 parts in the CPLs; both planes in the gerbers |
 | Firmware pin map | `firmware/rev3_power` native test passes for rev-3 and rev-4 |
 
