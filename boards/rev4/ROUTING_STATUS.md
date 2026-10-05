@@ -163,7 +163,9 @@ the edge.
 
 ## The RS-485 pairs
 
-BUS and SYNC (20 Mbaud) run from J4 at the left edge to J3 at the right. J3 and
+BUS and SYNC (RS-485; the SN65HVD75 is rated to 20 Mbit/s, the RP2350's UART to
+9.375 Mbaud, so the firmware plan runs the bus as a PIO UART at 12.5 Mbaud) run
+from J4 at the left edge to J3 at the right. J3 and
 J4 are mirror images, so the four conductors reach J3 in the reverse of their
 order at J4: each pair swaps P and N once, and the two pairs cross once. rev-3
 laid them by hand for that reason, and its compaction then bent them off the

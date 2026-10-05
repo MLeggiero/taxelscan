@@ -1,0 +1,31 @@
+* R38 pulse stress, worst corner: 5.5 V, 0.5 uH, 0.1 ohm
+.model DSCH D(IS=3.1u N=1.0 RS=0.1 CJO=66p BV=20 IBV=100u)
+Vs src 0 PWL(0 0 10n 5.5)
+Rc src n1 0.1
+Lc n1 usb 0.5u IC=0
+C37 usb c37 0.9u IC=0
+R37e c37 0 10m
+C38 usb c38 100n IC=0
+R38e c38 0 20m
+C42 usb c42 100n IC=0
+R42e c42 0 20m
+R38 usb snub 1
+C46 snub 0 10u IC=0
+D2 usb v5 DSCH
+C22 v5 c22 2.8u IC=0
+R22e c22 0 10m
+C27 v5 c27 100n IC=0
+R27e c27 0 20m
+Rload v5 0 1k
+.tran 2n 100u 0 2n UIC
+.control
+run
+let p = (v(usb)-v(snub))*(v(usb)-v(snub))/1
+meas tran ipk MAX i(Lc)
+meas tran ppk MAX p
+meas tran e38 INTEG p FROM=0 TO=100u
+let ir = (v(usb)-v(snub))/1
+meas tran ir38 MAX ir
+quit
+.endc
+.end

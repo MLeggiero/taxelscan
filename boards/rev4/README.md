@@ -15,6 +15,7 @@ positions, on rev-3's 60.3 × 35.9 mm outline.
 | `fab/` | the JLCPCB package from `make_fab.py`: gerbers, drills, `rev4-gerbers.zip`, middle-board and end-board BOM/CPL sets, drawings, order and stackup notes |
 | `PLACEMENT.md` | the placement analysis: what removing U8 freed, every move considered, which were made and why |
 | `ROUTING_STATUS.md` | the routed board: how it was re-routed for straight routing, DRC, parity, plane health, open items |
+| `VERIFICATION.md` | the functional check: every IC against its datasheet, the analog chain and hot plug simulated, the layout measured, what to fix before ordering and what to measure at bring-up (scripts in `verify/`) |
 | `tools/` | the board-change, placement and routing scripts for this revision, and rev-3's router ported to run anywhere (see `tools/README.md`) |
 | `pcb_top.png`, `pcb_rev3_vs_rev4.png`, `pcb_routing_before_after.png` | renders: the board, the ADC corner against rev-3, the routing before and after the re-route |
 
@@ -106,10 +107,13 @@ and the `USB_ILIM` / `USB_ILIM_LOW` segments were re-routed at the board's
   rail noise common to both cancels instead of appearing in the reading - while
   R26 still keeps IOVDD switching noise off it.
 - **Resolution.** `../rev3/ROUTING_STATUS.md` estimated the 16-bit chain at
-  ~11.9 noise-free bits at 80 fps — about what the 12-bit rev-1 chain gave — so
-  the LTC1865L bought roughly 3× lower noise, not 16 usable bits. That 3× is what
-  rev-4 gives up. The ×6 gain stage, which is where rev-3's sensitivity gain over
-  rev-1 comes from, stays.
+  ~11.9 noise-free bits at 80 fps. The internal ADC's ENOB is 9.0 minimum,
+  9.5 typical (RP2350 datasheet Table 1685): 1.6-2.3 LSB rms, 8.1-8.6 noise-free
+  bits per conversion. That is 10-14× more noise per conversion than rev-3
+  expected, before oversampling and the conditioning filters - the same converter
+  rev-1, the board that has shipped, reads its mat with. The front end adds only
+  0.13 LSB rms (`VERIFICATION.md`). The ×6 gain stage, which is where rev-3's
+  sensitivity gain over rev-1 comes from, stays.
 - **One converter for both banks.** The internal ADC is a single SAR behind an
   input mux, as on rev-1, where reading bank A then bank B let charge carry over
   and the firmware's `adcDiscard` throws one conversion away after a switch.
@@ -148,7 +152,7 @@ and the `USB_ILIM` / `USB_ILIM_LOW` segments were re-routed at the board's
 | Fab package | 70 BOM lines, every one with an LCSC number; 104 / 106 parts in the CPLs; both planes in the gerbers |
 | Firmware pin map | `firmware/rev3_power` native test passes for rev-3 and rev-4 |
 
-What is still open, and what to measure at bring-up: `ROUTING_STATUS.md`.
+What is still open, and what to measure at bring-up: `VERIFICATION.md` and `ROUTING_STATUS.md`.
 
 The board scripts run with KiCad's Python (`pcbnew`); `tools/README.md` says how.
 The intermediate boards live in `<checkout>/tmp/` (git-ignored).

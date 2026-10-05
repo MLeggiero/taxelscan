@@ -1,0 +1,38 @@
+* noise_ronly.cir (op-amp en off) - output noise at ADC_A (the pin, across C31) for a resting taxel.
+* Sources: R1 10k, the 31 resting taxels (1M/31) and the selected 1M taxel (thermal),
+* TLV9062 en = 10 nV/rtHz white (SBOS839N: 10 nV/rtHz @10 kHz; 1/f part integrates to
+* <2 uV rms at the input over 0.1 Hz-3 MHz and is left out), in = 23 fA/rtHz (negligible),
+* R6/R7, R21. Noise integrated 1 Hz - 1 GHz; the RP2350 S/H samples the full bandwidth.
+.include tlv9062.lib
+Vp vp 0 3.29
+Vrow row 0 DC 3.29 AC 1
+Rt row colx 1meg
+Ro colx 0 32.26k
+Ccol colx 0 5p
+Ron colx com 250
+Ccom com 0 55p
+Ctr com 0 1.5p
+Cic com 0 4p
+R1 com 0 10k
+* op-amp input voltage noise: thermal noise of 6.04k = 10.0 nV/rtHz, injected by a noiseless VCVS
+Ren nx 0 6.04k noisy=0
+Een inpx com nx 0 1
+XU inpx gain amp vp 0 tlv9062
+R6 gain amp 10k
+R7 gain 0 2k
+Cicm gain 0 4p
+R21 amp adc 51
+C31 adc 0 1n
+.control
+set noaskquit
+op
+print v(adc)
+noise v(adc) Vrow dec 50 1 1g
+setplot noise2
+print onoise_total
+let lsb = 3.2885/4096
+let n_lsb = onoise_total/lsb
+print n_lsb
+* contribution with the op-amp noise only (resistors noiseless)
+.endc
+.end

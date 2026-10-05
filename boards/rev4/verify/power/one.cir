@@ -1,0 +1,19 @@
+* test
+.model DSCH D(IS=3.1u N=1.0 RS=0.1 CJO=66p BV=20 IBV=100u)
+Vs src 0 PWL(0 0 10n 5.25)
+Rc src n1 0.2
+Lc n1 usb 1u IC=0
+C37 usb c37 0.9u IC=0
+R37e c37 0 10m
+D2 usb v5 DSCH
+C22 v5 c22 2.8u IC=0
+R22e c22 0 10m
+Rload v5 0 1k
+.tran 2n 60u 0 2n UIC
+.control
+run
+meas tran pkusb MAX v(usb)
+meas tran pkv5 MAX v(v5)
+quit
+.endc
+.end

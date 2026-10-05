@@ -1,0 +1,30 @@
+* TLV9062 behavioural macromodel (one channel), built from SBOS839N section 6.10:
+*   GBP 10 MHz, SR 6.5 V/us, AOL ~110 dB (100 dB @1.8V .. 130 dB @5.5V, RL 10k),
+*   phase margin 55 deg at G=+1 (second pole 12 MHz gives 55 deg),
+*   open-loop output impedance ZO = 100 ohm (resistive, "f = 10 MHz"),
+*   rail-to-rail output (internal node clamped ~2 mV inside the rails; Ro then sets the
+*   load-dependent swing: 12k load -> ~27 mV from V+, datasheet 15-20 mV @ 10k),
+*   input capacitances CIC 4 pF, CID 2 pF are added OUTSIDE (in each deck) so loop-gain
+*   injection at IN- is exact. VOS is a parameter.
+.subckt tlv9062 inp inm out vp vn params: vos=0 ro=100 fp2=12meg
+.param gm=0.0628319 imax=6.5m cc=1n rr=5.0329meg
+Vos inp inpx DC {vos}
+Bmid mid vn V = (V(vp)-V(vn))/2
+* slew-limited transconductance into the dominant-pole node
+B1 mid n1 I = {imax}*tanh({gm}*(V(inpx)-V(inm))/{imax})
+R1 n1 mid {rr}
+C1 n1 mid {cc}
+* anti-windup / rail clamp of the integrator (output stage cannot exceed the rails)
+Vcp vpc vp DC -0.002
+Vcn vnc vn DC 0.002
+D1 n1 vpc dclamp
+D2 vnc n1 dclamp
+* second pole
+E2 n2a vn n1 vn 1
+R2 n2a n2 1k
+C2 n2 vn {1/(6.283185*1k*fp2)}
+* output stage
+E3 n3 vn n2 vn 1
+Ro n3 out {ro}
+.model dclamp D(IS=1e-14 N=0.01)
+.ends tlv9062

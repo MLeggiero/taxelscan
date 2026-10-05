@@ -1,0 +1,53 @@
+* ratio.cir - how well ripple on +3.3V cancels between the excitation (ROW_VCC, via R5 0R)
+* and the ADC reference (ADC_AVDD, via R26 10R / C36 100nF). AC 1 V on +3.3V.
+* h_sig = (ADC_A ripple / ADC_A DC) / (V33 ripple / V33 DC); h_ref = ADC_AVDD ripple / V33 ripple.
+* Code error per unit relative ripple = h_sig - h_ref (sampling-instant offset not included).
+* U7 is powered from a clean source here (TLV9062 PSRR 7 uV/V typ is negligible: 0.03 LSB / 50 mV).
+.include tlv9062.lib
+.param rmat=50k
+V33 v33 0 DC 3.29 AC 1
+* ROW_VCC branch: R5 0R, C1-C4 4 x 100nF; the 595's driven output follows its VCC through ~25R
+R5 v33 rowvcc 1m
+C1 rowvcc 0 400n
+Erow rowint 0 rowvcc 0 1
+Rrow rowint row 25
+Rt row colx {rmat}
+Ro colx 0 32.26k
+Ccol colx 0 20p
+Ron colx com 250
+Ccom com 0 60.5p
+R1 com 0 10k
+Vpc vpc 0 3.29
+XU com gain amp vpc 0 tlv9062
+R6 gain amp 10k
+R7 gain 0 2k
+R21 amp adc 51
+C31 adc 0 1n
+* ADC_AVDD branch
+R26 v33 avdd 10
+C36 avdd 0 100n
+Iadc avdd 0 DC 150u
+.control
+set noaskquit
+op
+let kdc = v(adc)/3.29
+print v(adc) v(avdd) kdc
+let kdcs = kdc
+ac dec 20 10 10meg
+let hsig = v(adc)/op1.kdc
+let href = v(avdd)
+let diff = mag(hsig - href)
+wrdata ratio_ac.txt real(hsig) imag(hsig) real(href) imag(href)
+meas ac d100 find diff at=100
+meas ac d1k find diff at=1k
+meas ac d10k find diff at=10k
+meas ac d100k find diff at=100k
+meas ac d300k find diff at=300k
+meas ac d1m find diff at=1meg
+meas ac d15m find diff at=1.5meg
+meas ac hs15m find mag(hsig) at=1.5meg
+meas ac hr15m find mag(href) at=1.5meg
+meas ac hs100k find mag(hsig) at=100k
+meas ac hr100k find mag(href) at=100k
+.endc
+.end

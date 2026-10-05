@@ -1,0 +1,8 @@
+# outputs of the simulation drivers and decks they generate
+*.txt
+*.raw
+__pycache__/
+analog/chain_*.cir
+analog/carry_*.cir
+analog/row_*.cir
+analog/opamp_loop_*.cir

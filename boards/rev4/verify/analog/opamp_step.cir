@@ -1,0 +1,39 @@
+* opamp_step.cir - U7 (G=6) + R21 51R + C31 1nF: step response of the amplifier alone,
+* sense node driven by an ideal fast source (10 ns edge). Small step 10 mV (60 mV out) and
+* large step 25 mV -> 520 mV (0.15 V -> 3.12 V out, slews). Ringing / overshoot / settle.
+.include tlv9062.lib
+.param ro=100 fp2=12meg
+Vp vp 0 3.29
+Vs1 s1 0 PWL(0 0.025 1u 0.025 1.01u 0.035 6u 0.035 6.01u 0.025)
+Vs2 s2 0 PWL(0 0.025 1u 0.025 1.01u 0.520 6u 0.520 6.01u 0.025)
+* small-step channel
+XA s1 ga amp1 vp 0 tlv9062 ro={ro} fp2={fp2}
+R6a ga amp1 10k
+R7a ga 0 2k
+Cica ga 0 4p
+Cida ga s1 2p
+R21a amp1 adc1 51
+C31a adc1 0 1n
+* large-step channel
+XB s2 gb amp2 vp 0 tlv9062 ro={ro} fp2={fp2}
+R6b gb amp2 10k
+R7b gb 0 2k
+Cicb gb 0 4p
+Cidb gb s2 2p
+R21b amp2 adc2 51
+C31b adc2 0 1n
+.options reltol=1e-6 abstol=1e-13 vntol=1e-8
+.control
+set noaskquit
+tran 1n 11u
+meas tran a1max max v(amp1) from=1u to=3u
+meas tran d1max max v(adc1) from=1u to=3u
+meas tran a2max max v(amp2) from=1u to=4u
+meas tran d2max max v(adc2) from=1u to=4u
+meas tran d1fin find v(adc1) at=5.9u
+meas tran d2fin find v(adc2) at=5.9u
+meas tran d2min min v(adc2) from=6u to=10u
+meas tran d1min min v(adc1) from=6u to=8u
+wrdata opamp_step.txt v(adc1) v(amp1) v(adc2) v(amp2)
+.endc
+.end

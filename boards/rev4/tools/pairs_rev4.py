@@ -1,6 +1,6 @@
 """pairs_rev4.py in.kicad_pcb out.kicad_pcb - the RS-485 pairs, coupled and octilinear.
 
-BUS_P/N and SYNC_P/N (20 Mbaud) run from J4 at the left edge, through their
+BUS_P/N and SYNC_P/N (RS-485) run from J4 at the left edge, through their
 transceivers (U10, U11) and terminations (R11, R12), across the board to J3 at
 the right edge. J3 and J4 are mirror images, so the four conductors arrive at
 J3 in exactly the reverse of their order at J4: each pair swaps P and N once
