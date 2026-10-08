@@ -69,7 +69,9 @@ ADC-input cells (R21/C31, R22/C32) from beside U8 to beside the RP2354A's ADC
 pins, and the rail monitor (R15/R16/C45) out of their way. U7 and the gain
 network, the muxes, the MCU, the connectors and the outline did not move;
 `PLACEMENT.md` has the analysis, including the two moves that were considered
-and rejected (moving U7 west, and re-compacting the outline for 0.9 mm).
+and rejected (moving U7 west, and re-compacting the outline for 0.9 mm). After
+the verification, the regulator and buck corners were re-placed and R30 / R31
+moved (below).
 
 **Silkscreen.** The back reads `TaxelScan v4`, so the two revisions can be
 told apart on the bench. The front has gained a `1` at pin 1 of J3 / J4 and
@@ -77,14 +79,21 @@ J6's `SC GND SD RUN` (below).
 
 **Routing.** Re-routed from scratch so that every track runs at 0, 45 or 90
 degrees: rev-3's routing, which the first rev-4 kept, had 67 % of its copper at
-arbitrary angles; now 0.2 % (5.7 mm of plane ties). Freerouting did the bulk;
-the nets it cannot be trusted with - the RS-485 pairs, both USB pairs (the
-USB-C side bridged across J5's interleaved pins and run side by side), the ADC
-corner, VCORE, VREG_LX / SW_NODE and J5's VBUS pins - were laid first by the
-board's own exact-geometry router, octilinear, which also finished and tidied
-what Freerouting left. Nothing routes on In2 any more (it had 125 mm), so the
-+3.3 V plane is one piece; the 5 V rails are 0.3 mm (bar D5.5's 3 mm VBUS tie
-at 0.15 mm) and VCORE 0.2 mm.
+arbitrary angles; now 0.03 % (0.8 mm of plane ties). Freerouting did the bulk.
+The 30 nets it cannot be trusted with were laid first by the board's own
+exact-geometry router, octilinear, which also finished and tidied what
+Freerouting left:
+- the RS-485 pairs and both USB pairs (the USB-C side bridged across J5's
+  interleaved pins and run side by side);
+- the core regulator as Raspberry Pi lay it out, the buck's input loop, VCORE,
+  VREG_LX and SW_NODE;
+- the ADC corner, the crystal, J5's VBUS pins and USB_ILIM;
+- the corner south and east of the RP2354A, with its address lines, debug
+  lines and TUSB320 nets.
+
+Nothing routes on In2 any more (it had 125 mm), so the +3.3 V plane is one
+piece. The 5 V rails are 0.3 mm, widened to 0.5-0.6 mm where they fit (bar
+D5.5's VBUS tie at 0.15 mm), and VCORE is 0.2 mm.
 `ROUTING_STATUS.md` has the method and every number; `pcb_routing_before_after.png`
 shows it.
 
@@ -110,18 +119,21 @@ offsets from pins 46–50 that Raspberry Pi's RP2350A minimal design uses:
   0402 4.7 µF (Samsung CL05A475MP5NRNC; the minimal design fits Murata's 6.3 V
   GRM155R60J475ME47D) on the minimal design's wide-gap land
   (`FlexiTac:C_0402_1005Metric_WideGap`), so VREG_LX runs straight up from pin
-  48 between their pads into L1: @LX@.
+  48 between their pads into L1: 3.3 mm on F.Cu with no via (it was 4.4 mm).
 - CIN's and COUT's grounds join pin 47 and reach the plane at one point,
   through two adjacent vias. CFILT (C43, now 0402 too) has its own ground via.
   VREG_FB is taken from COUT's pad, beside LX rather than under it. VCORE
   leaves through two vias west of COUT. In1 is cut away under L1 and the LX
   track (Figure 27).
-- The switching loop, LX → L1 → COUT → ground → PGND, encloses @LOOP@ mm²,
-  against about 20 mm² before and 2–3 mm² in the minimal design.
+- The switching loop, LX → L1 → COUT → ground → PGND, encloses 2.6 mm²
+  (`verify/layout/vreg_loop.py`), against about 20 mm² before and 2.3 mm² in
+  the minimal design measured the same way.
 - R23 / R24, the USB series resistors, moved north-west of pins 51 / 52 as in
-  the minimal design, so USB_D leaves on F.Cu with no via: @USBD@.
-- Pins 53 and 54 (USB_OTP_VDD, QSPI_IOVDD) are tied in the ring and share C18
-  @C18@, which also settles finding 4. C17, no longer needed at VREG_VIN,
+  the minimal design, so USB_D leaves on F.Cu with no via: 4.1 / 3.8 mm,
+  where it was 5.7 / 4.8 mm through two vias each.
+- Pins 53 and 54 (USB_OTP_VDD, QSPI_IOVDD) are tied in the ring and share C18,
+  1.3 mm of track from pin 54 with its own ground via. That also settles
+  finding 4. C17, no longer needed at VREG_VIN,
   decouples the VREG_AVDD filter's +3.3 V input.
 
 **Hot plug** (finding 2). The new simulation (`verify/power/damper.py`) took
@@ -136,7 +148,8 @@ attach-capacitance limits keeps a 6 V part safe, so:
   (TI's standard pairing). The fixed output takes R18 / R19 off the board.
   It is laid out as TI's Figure 42: C27 across VIN / PGND at the pins, C22
   beside them, AGND, PGND and C22's ground meeting at the exposed pad (two
-  vias), L2 beside SW (@SW@), VOS from L2's output pad.
+  vias), L2 beside SW (2.5 mm of 0.3 mm track, was 4.3 mm), VOS from L2's
+  output pad.
 - The damper is now R38 0.68 Ω + C46 22 µF (the C23 reel). +5V_USB stays at
   or below 6.78 V in every case simulated: 5.0–5.5 V supplies, 0.5–2 µH
   cables. That is inside U14's 7 V. U12's input now peaks at 6.5 V against
@@ -171,9 +184,10 @@ defaults to rev-3. It stops the build with `#error` unless
 **For the re-route**, R30 / R31 (U14's EN pull-down and FAULT pull-up) moved
 from west of U9 to under U14's pins 3 and 4. Where rev-3 left them, both nets
 crossed under the MCU to reach them (38–52 mm, 4–6 vias), and the rip-up loop
-could not fit them past U9's east side.
+could not fit them past U9's east side. Now they are 20 and 26 mm, with 2 vias
+and none.
 
-Placed parts: @PARTS@. Nets: 135 → 134 (`FB` went with the divider).
+Placed parts: 104 → 102 on a middle board, 106 → 104 on the two end boards. Nets: 135 → 134 (`FB` went with the divider).
 Distinct part numbers: 47 → 46.
 
 ## What the internal ADC changes, electrically
@@ -231,11 +245,11 @@ Distinct part numbers: 47 → 46.
 | DRC, zones refilled | 0 unconnected, 0 copper errors; rev-3's same 5 silkscreen warnings |
 | Schematic parity | every net's pads match; the only items are rev-3's net-name prefix and J5's two open SBU pins |
 | ERC | 0 errors |
-| Routing | 5.7 of 2311 mm (0.2 %) off 0 / 45 / 90 degrees, all of it plane ties (first rev-4: 67 %); nothing on In2; 165 signal vias; the USB-C data pair 2 / 2 vias, side by side |
-| +3.3 V plane (In2) | 1 piece, 1813 mm², all 34 vias (first rev-4: 2 pieces, 1740 mm², 33 of 34; rev-3: 7 pieces, 1665 mm², 27 of 35) |
-| GND plane (In1) | one piece, 1860 mm², all 112 vias |
-| Fab package | 70 BOM lines, every one with an LCSC number; 104 / 106 parts in the CPLs; both planes in the gerbers |
-| Firmware pin map | `firmware/rev3_power` native test passes for rev-3 and rev-4 |
+| Routing | 0.8 of 2291 mm (0.03 %) off 0 / 45 / 90 degrees, all of it plane ties (first rev-4: 67 %); nothing on In2; 164 signal vias; the USB-C data pair 2 / 2 vias, side by side |
+| +3.3 V plane (In2) | 1 piece, 1820 mm², all 32 vias (first rev-4: 2 pieces, 1740 mm², 33 of 34; rev-3: 7 pieces, 1665 mm², 27 of 35) |
+| GND plane (In1) | one piece, 1864 mm², all 104 vias |
+| Fab package | 69 BOM lines, every one with an LCSC number; 102 / 104 parts in the CPLs; both planes in the gerbers |
+| Firmware pin map | `firmware/rev3_power` native test passes for rev-3 and rev-4; a build without `TAXELSCAN_BOARD_REV` stops |
 
 What is still open, and what to measure at bring-up: `VERIFICATION.md` and `ROUTING_STATUS.md`.
 
