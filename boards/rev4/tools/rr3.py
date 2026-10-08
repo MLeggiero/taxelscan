@@ -238,10 +238,17 @@ def rrr3(m, must, protect=rr2.PROTECT, layers_fn=None, width_fn=None, max_iter=8
     """rr2.rrr with octilinear connections: route each net's components together;
     when blocked, route through other nets' copper (soft-costed), rip what was
     crossed and queue those nets again. fallback_layers(net) may widen a net's
-    layers on a second try (None: no fallback)."""
+    layers on a second try (None: no fallback).
+
+    Two nets that keep routing through each other (each through the other twice)
+    are made to take turns: the one being routed must go round the other; if it
+    cannot, it goes through once more and the other must go round it, once."""
     locked = set(locked)
     queue = list(must)
     ripped = collections.Counter()
+    through = collections.Counter()     # (net, other): times net was routed through other's copper
+    round_ = set()                      # (net, other): net may not route through other
+    swapped = set()                     # pairs whose turns were swapped once already
     failed = []
     touched = set(must)
     width_fn = width_fn or (lambda net: rr2.default_width(m, net))
@@ -264,15 +271,37 @@ def rrr3(m, must, protect=rr2.PROTECT, layers_fn=None, width_fn=None, max_iter=8
             queue.insert(0, net)
             continue
         wb = box(*win)
-        ign = frozenset(it["uuid"] for it in m.items if it["kind"] in ("track", "via") and it["net"] != net
-                        and it["net"] not in protect and it["net"] not in locked and it["net"] not in no_rip
-                        and ripped[it["net"]] < max_rip and it["geom"].intersects(wb))
-        r, win = connect_once(m, net, cs, w, lays, margin, ignore=ign, keepout=keepout, extra_pen=extra_pen, soft=60)
-        if (not r or r[2]) and fallback_layers is not None and tuple(fallback_layers(net)) != tuple(lays):
-            r2, win2 = connect_once(m, net, cs, w, fallback_layers(net), margin + 1.5, ignore=ign, keepout=keepout,
-                                    extra_pen=extra_pen, soft=60)
-            if r2 and not r2[2]:
-                r, win = r2, win2
+        for (a, bn), k in list(through.items()):
+            if a == net and k >= 2 and through[(bn, net)] >= 2 and (bn, net) not in round_ and (net, bn) not in round_:
+                round_.add((net, bn))
+                log("  %-14s and %s took turns: %s goes round it" % (net, bn, net))
+
+        def ignorable():
+            return frozenset(it["uuid"] for it in m.items if it["kind"] in ("track", "via") and it["net"] != net
+                             and it["net"] not in protect and it["net"] not in locked and it["net"] not in no_rip
+                             and ripped[it["net"]] < max_rip and (net, it["net"]) not in round_
+                             and it["geom"].intersects(wb))
+
+        def attempt(ign):
+            r, win = connect_once(m, net, cs, w, lays, margin, ignore=ign, keepout=keepout, extra_pen=extra_pen, soft=60)
+            if (not r or r[2]) and fallback_layers is not None and tuple(fallback_layers(net)) != tuple(lays):
+                r2, win2 = connect_once(m, net, cs, w, fallback_layers(net), margin + 1.5, ignore=ign, keepout=keepout,
+                                        extra_pen=extra_pen, soft=60)
+                if r2 and not r2[2]:
+                    return r2, win2
+            return r, win
+
+        ign = ignorable()
+        r, win = attempt(ign)
+        partners = sorted(bn for a, bn in round_ if a == net and frozenset((net, bn)) not in swapped)
+        if (not r or r[2]) and partners:
+            for bn in partners:              # no way round: through once more, and the other goes round
+                round_.discard((net, bn))
+                round_.add((bn, net))
+                swapped.add(frozenset((net, bn)))
+            log("  %-14s has no way round %s: through it, and it goes round" % (net, ", ".join(partners)))
+            ign = ignorable()
+            r, win = attempt(ign)
         if not r or r[2]:
             log("  %-14s FAILED (%s)" % (net, r[2] if r else "no path"))
             failed.append(net)
@@ -286,6 +315,7 @@ def rrr3(m, must, protect=rr2.PROTECT, layers_fn=None, width_fn=None, max_iter=8
         rr2.commit(m, net, segs, vias, w)
         for bn in nets_hit:
             ripped[bn] += 1
+            through[(net, bn)] += 1
             touched.add(bn)
             if bn not in queue:
                 queue.append(bn)

@@ -1,17 +1,24 @@
-# Routing status — rev-4, 5 October 2026
+# Routing status — rev-4, 7 October 2026
 
 `rev4.kicad_pcb` is **re-routed from scratch** for straight routing: every
-signal track runs at 0, 45 or 90 degrees. The placement is the first rev-4's
-([PLACEMENT.md](PLACEMENT.md)) to the nanometre; only the copper changed, plus
-one ground via that moved into its pad (R27.2, below).
+signal track runs at 0, 45 or 90 degrees. This is the third re-route. It
+follows the fixes to `VERIFICATION.md`'s findings (7 October): the RP2354A's
+core regulator re-placed as Raspberry Pi's RP2350A minimal design, U12 changed
+to the TPS62162 in TI's layout, R18 / R19 removed, and J6 re-pinned.
+`tools/fix_rev4.py` made those placement changes ([PLACEMENT.md](PLACEMENT.md))
+and drew their GND / +3.3 V copper. The pre-route now draws the regulator's
+own nets as the minimal design does: VREG_LX up between CIN's and COUT's pads,
+VCORE's two vias, VREG_FB from COUT and VREG_AVDD to CFILT. It also draws USB_D
+on F.Cu to the resistors' new place, the buck's input loop and, for the first
+time, USB_ILIM. Every other footprint is where it was.
 
-The first rev-4 kept rev-3's routing wherever the ADC change did not reach, and
-rev-3's copper was jagged: grid-router staircases simplified by line of sight,
-then a compaction pass (17 September) that let every corner drift. Two thirds of
-it ran at arbitrary angles. That routing is in the history (commit `1b49e55`,
-summarised at the end of this file). The first re-route (`a47fcb2`) left the
-USB-C data lines to Freerouting; this one pre-routes them as a pair, and its
-finish tidies what the rip-up loop leaves behind.
+The first rev-4 kept rev-3's routing wherever the ADC change did not reach,
+and rev-3's copper was jagged: grid-router staircases simplified by line of
+sight, then a compaction pass (17 September) that let every corner drift. Two
+thirds of it ran at arbitrary angles. That routing is in the history (commit
+`1b49e55`, summarised at the end of this file). The first re-route (`a47fcb2`)
+left the USB-C data lines to Freerouting; the second (`7ca63a4`) pre-routed
+them as a pair and tidied what the rip-up loop left behind.
 
 ![before and after](pcb_routing_before_after.png)
 

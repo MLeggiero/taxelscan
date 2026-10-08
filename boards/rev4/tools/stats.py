@@ -9,7 +9,7 @@ NETS = ["BUS_P", "BUS_N", "SYNC_P", "SYNC_N", "USBC_D_P", "USBC_D_N", "USB_D_P",
         "VCORE", "+5V", "+5V_BUS", "+5V_USB", "SENSE_A", "SENSE_B", "ADC_A", "ADC_B", "AMP_B",
         "XIN", "XOUT", "XOUT_MCU", "VREG_LX", "ROW_DATA", "BUS_DI", "USB_VBUS_DET",
         "ADDR0", "ADDR1", "ADDR2", "AMP_A", "USB_CC_OUT1", "RAIL_MON", "USB_ILIM", "USB_CC_OUT2",
-        "ROW_CLK", "ROW_LATCH", "ROW_CLK_MCU", "ROW_LATCH_MCU", "FB"]
+        "ROW_CLK", "ROW_LATCH", "ROW_CLK_MCU", "ROW_LATCH_MCU", "VREG_AVDD", "SW_NODE"]
 LAYER = {K.F_Cu: "F.Cu", K.In1_Cu: "In1.Cu", K.In2_Cu: "In2.Cu", K.B_Cu: "B.Cu"}
 
 b = K.LoadBoard(sys.argv[1])

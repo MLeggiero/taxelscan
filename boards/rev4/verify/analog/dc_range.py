@@ -1,6 +1,6 @@
 # DC signal range of the rev-4 chain (no ngspice needed; closed form)
 import math
-VCC=3.29      # +3.3V rail nominal (README: TLV62569 3.29 V, 3.24-3.34)
+VCC=3.29      # +3.3V rail nominal as first analysed (TLV62569, 3.24-3.34 V); the TPS62162 that replaced it gives 3.30 V (3.18-3.43). The results are ratios of the rail
 Rpd=10e3; G=1+10e3/2e3
 Ron=250.0     # CD74HC4067 at VCC=3.3 V, VIS~0 (datasheet only gives 70/160 ohm at 4.5 V) -> assumption
 Rout=25.0     # SN74LVC595A, from VOH 2.2V @ -24 mA @ 3 V -> <=33 ohm

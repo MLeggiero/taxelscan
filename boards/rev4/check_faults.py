@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Break gen_rev4.py on purpose, thirty-nine ways, and confirm it notices.
+"""Break gen_rev4.py on purpose, forty-one ways, and confirm it notices.
 
 A check that has never failed is a comment. This runs gen_rev4.py's own
 check() against deliberately damaged copies of the generator - each one a
@@ -166,9 +166,17 @@ FAULTS = [
      '"Resistor_SMD:R_0402_1005Metric", "C852624",\n     "BOOTSEL series.',
      '"Resistor_SMD:R_0402_1005Metric", "C705629",\n     "BOOTSEL series.'),
 
-    ("the buck's FB tied to its output instead of a divider tap",
-     'n("FB", "U12", p("U12", "FB"))',
-     'n("+3.3V", "U12", p("U12", "FB"))'),
+    ("the fixed-output buck's VOS left off its output",
+     'n("+3.3V", "U12", p("U12", "VOS"))',
+     '# VOS left open'),
+
+    ("the 5 V member of the TPS6216x fitted as U12",
+     '"TPS62162DSG", "TPS62162DSGR",',
+     '"TPS62162DSG", "TPS62163DSGR",'),
+
+    ("the debug header back in rev-3's order",
+     'for pin, net in ((1, "SWCLK"), (2, "GND"), (3, "SWDIO"), (4, "RUN")):\n        n(net, "J6"',
+     'for pin, net in ((1, "SWDIO"), (2, "SWCLK"), (3, "GND"), (4, "RUN")):\n        n(net, "J6"'),
 
     ("a connector shell left floating",
      '("J1", "J2", "J3", "J4"):\n        n("GND", conn, p(conn, "MountPin"))',

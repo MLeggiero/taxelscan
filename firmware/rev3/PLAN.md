@@ -100,7 +100,9 @@ Free and unrouted: **GPIO12, 14, 15, 26**. Leave them as inputs with the reset
 pull-down; do not call `adc_gpio_init()` on 26.
 
 `firmware/rev3_power/usb_power_policy.h` already carries 0, 23, 24, 27, 29 and
-asserts them against `gen_rev3.py`. Do not re-type them; include that header.
+asserts them against `gen_rev3.py`. Do not re-type them; include that header,
+and give the board revision (`TAXELSCAN_BOARD_REV=3`, `=4` for rev-4's map):
+the header stops the build without it.
 
 ### 3.2 Analog chain
 

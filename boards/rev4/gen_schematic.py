@@ -59,7 +59,7 @@ BOM = os.path.join(HERE, "BOM.csv")
 # reaches its pin through a series resistor, so the only thing ERC can see on
 # the net is a power INPUT, and it correctly says nothing is driving it.
 PWR_FLAG_NETS = ["+3.3V", "+5V", "+5V_BUS", "+5V_USB", "GND",
-                 "VCORE", "ROW_VCC", "FB", "ADC_AVDD", "VREG_AVDD"]
+                 "VCORE", "ROW_VCC", "ADC_AVDD", "VREG_AVDD"]
 
 # A solder jumper is copper, not a part: nothing is placed on it, and its
 # footprint says so with (attr exclude_from_pos_files exclude_from_bom). The
@@ -79,7 +79,7 @@ ORDER = [
     "U10", "U11", "R11", "R12", "J3", "J4",              # bus
     "J5", "U13", "U14", "D1", "D2", "D4",              # USB
     "J6", "R20",                                         # debug, reset
-    "U12", "L2", "R18", "R19", "C22", "C23",             # power
+    "U12", "L2", "C22", "C23",                           # power
 ]
 
 

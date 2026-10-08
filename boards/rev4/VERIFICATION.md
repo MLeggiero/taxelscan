@@ -11,6 +11,22 @@ measured on the board itself. The project's own checks were re-run.
 
 The scripts are in [verify/](verify/README.md).
 
+## Since then: findings 1–4, 10 and 11 fixed (7 October 2026)
+
+The three findings to deal with before ordering are fixed, and so are the J6
+order (10), the firmware default (11) and, on the way, QSPI_IOVDD's capacitor
+(4). [README.md](README.md) ("Fixed after the verification") and
+[PLACEMENT.md](PLACEMENT.md) describe the changes. The board was re-placed in
+the regulator and buck corners and re-routed from scratch. The rest of this
+file is the 5 October verification. Notes marked *7 Oct* bring it up to date
+where the fixes changed an answer; the findings table marks what is done.
+
+Re-checked on the re-routed board:
+
+| check | result |
+|---|---|
+@STATUS_TABLE@
+
 ## Verdict
 
 **The circuit is correct and complete. Nothing found would stop the board powering up,
@@ -48,17 +64,17 @@ the pieces that do exist need three corrections before they meet this board.
 
 | # | | finding | consequence | fix | since |
 |---|---|---|---|---|---|
-| 1 | **MAJOR** | Core regulator layout departs from RP2350 datasheet §6.3.8 / Fig. 26, which "must be strictly followed". CIN (C44, 4.7 µF) is 5.7 mm from VREG_VIN and reaches it only through the planes; pin 49 has only C17 (100 nF) locally. COUT's (C19) ground is 5.9 mm from VREG_PGND. The LX → L1 → C19 → GND → PGND loop is about 20 mm² against 2–3 mm² in Raspberry Pi's minimal design. | The design guide (§2.1) says other layouts "work… well enough to execute code" but may not hold the output correct across load. DVDD must stay within 1.05–1.16 V. | Re-place L1, C19 and C44 as Fig. 26: CIN straddling pins 49 / 47, COUT beside it sharing PGND's ground through two vias, L1 above, LX straight up between them; move R23 / R24 and the VREG_AVDD filter to make room. At minimum, scope VCORE at pin 23 under load steps at bring-up. | rev-3 |
-| 2 | **MAJOR** | Hot plug, simulated: from a fixed supply with a captive cable (1.5 µH, 0.08 Ω), U12's VIN peaks at 6.3–6.5 V and +5V_USB at 6.6–6.8 V, even with the damper. Limits are 6 V (TLV62569) and 7 V (TPS2553). With cable loop resistance 0.1 Ω the peak is 6.1–6.7 V. Compliant USB-C sources (VBUS on only after Rd is seen) and A-to-C cables (≥ 0.3 Ω) stay ≤ 5.3 V. | U12 overstressed on stiff, always-on 5 V supplies. | R38 0.47 Ω with C46 22 µF (simulated ≤ 5.9 V at the worst corner, at more attach capacitance), or a buck rated ≥ 7 V. Scope U12 VIN at bring-up either way. | rev-3 (AUDIT §7.3 item 5; the damper of §9 reduced it) |
-| 3 | **MAJOR** (integration) | No harness cable is specified. J4's pins run 1→6 down the left edge and J3's 6→1 down the right, so between two boards a cable laid straight across joins pin 1 to pin 6. | +5V_BUS lands on SYNC_N and GND on SYNC_P; the BUS pair is swapped; the next board gets no power; an end board's R12 dissipates 208 mW against 0.1 W. | Specify GHR-06V-S housings wired pin n ↔ pin n (the wires cross between adjacent boards), twisted pairs on 3/4 and 5/6; mark pin 1 at J3 / J4 in silk. | rev-3 |
-| 4 | MINOR | QSPI_IOVDD (pin 54) supplies the internal flash but has no capacitor of its own. Pin 54 is not tied to pin 53 (C18); the nearest 100 nF is C33, 3.8 mm away along 0.15 mm track. The datasheet asks for its "increased high-frequency currents" to be accounted for. | Supply noise on the stacked flash at high QSPI clock. | Tie pins 53 and 54 together at the pin row so C18 serves both (the design guide's sharing), or add a 0201 at pin 54. | rev-3 |
+| 1 | **MAJOR** | Core regulator layout departs from RP2350 datasheet §6.3.8 / Fig. 26, which "must be strictly followed". CIN (C44, 4.7 µF) is 5.7 mm from VREG_VIN and reaches it only through the planes; pin 49 has only C17 (100 nF) locally. COUT's (C19) ground is 5.9 mm from VREG_PGND. The LX → L1 → C19 → GND → PGND loop is about 20 mm² against 2–3 mm² in Raspberry Pi's minimal design. | The design guide (§2.1) says other layouts "work… well enough to execute code" but may not hold the output correct across load. DVDD must stay within 1.05–1.16 V. | **Done 7 Oct.** Re-placed as Raspberry Pi's minimal design: CIN straddling pins 49 / 47, COUT beside it, the two-via ground point, L1 above, LX straight up between their pads, CFILT on its own via, VREG_FB from COUT; R23 / R24 north-west of the USB pins. Loop @LOOP@ mm². Still scope VCORE at pin 23 under load steps at bring-up. | rev-3 |
+| 2 | **MAJOR** | Hot plug, simulated: from a fixed supply with a captive cable (1.5 µH, 0.08 Ω), U12's VIN peaks at 6.3–6.5 V and +5V_USB at 6.6–6.8 V, even with the damper. Limits are 6 V (TLV62569) and 7 V (TPS2553). With cable loop resistance 0.1 Ω the peak is 6.1–6.7 V. Compliant USB-C sources (VBUS on only after Rd is seen) and A-to-C cables (≥ 0.3 Ω) stay ≤ 5.3 V. | U12 overstressed on stiff, always-on 5 V supplies. | **Done 7 Oct.** At USB-C's 5.5 V maximum the old damper let U12's VIN reach 7.1 V and +5V_USB 7.4 V (`verify/power/damper.py`), so both remedies: U12 is now the TPS62162 (20 V absolute maximum), and the damper 0.68 Ω + 22 µF holds +5V_USB to ≤ 6.78 V (U14: 7 V) and U12's input to ≤ 6.50 V in every case simulated. Scope VBUS at bring-up. | rev-3 (AUDIT §7.3 item 5; the damper of §9 reduced it) |
+| 3 | **MAJOR** (integration) | No harness cable is specified. J4's pins run 1→6 down the left edge and J3's 6→1 down the right, so between two boards a cable laid straight across joins pin 1 to pin 6. | +5V_BUS lands on SYNC_N and GND on SYNC_P; the BUS pair is swapped; the next board gets no power; an end board's R12 dissipates 208 mW against 0.1 W. | **Done 7 Oct.** README.md and `fab/ORDER-NOTES.txt` specify it: GHR-06V-S housings wired pin n ↔ pin n (the wires cross between adjacent boards), twisted pairs on 3/4 and 5/6. A `1` marks pin 1 of J3 and J4. | rev-3 |
+| 4 | MINOR | QSPI_IOVDD (pin 54) supplies the internal flash but has no capacitor of its own. Pin 54 is not tied to pin 53 (C18); the nearest 100 nF is C33, 3.8 mm away along 0.15 mm track. The datasheet asks for its "increased high-frequency currents" to be accounted for. | Supply noise on the stacked flash at high QSPI clock. | **Done 7 Oct**, with finding 1: pins 53 and 54 tied in the ring, C18 @C18@. | rev-3 |
 | 5 | MINOR | No second 4.7 µF on VCORE at DVDD pin 23, which §6.3.8.1 recommends "for best performance". Pin 23 has only C25 (100 nF), 13 mm of VCORE track from C19. | Larger VCORE droop at pin 23 on load steps. | 4.7 µF at pin 23, away from LX / COUT. | rev-3 |
 | 6 | MINOR | D2's reverse leakage floats +5V_USB on a board powered only from the harness. PMEG2005AEA leaks 15 µA typ / 40 µA max at 10 V; the only DC load on the node is R34 plus U13's internal pull-down, about 961 kΩ. A few µA holds the node near 2.9 V. | It back-drives an unpowered host's VBUS. A compliant USB-C source waits for VBUS below vSafe0V before turning VBUS on, so a harness-powered board plugged into USB for BOOTSEL may never enumerate. | A ~10 kΩ bleeder from +5V_USB to GND (0.5 mA at 5 V). | rev-3 |
 | 7 | MINOR | BUS_DE (U10's DE and ~RE, tied) has no external pull-down. Undriven, the SN65HVD75's internal 3 MΩ / 1 MΩ put it at 0.83 V, between VIL and VIH. R37 on SYNC_DE is 10 kΩ, above E9's 8.2 kΩ. Both are safe at reset, when the pad pull-down holds them low. | A board whose firmware leaves GPIO10 / GPIO13 as inputs can enable its driver and hold the whole harness. | 4.7 kΩ from BUS_DE to GND and R37 → 4.7 kΩ (the R29 / R30 reel); drive both low on slaves. | rev-3 |
-| 8 | MINOR | USB_ILIM (TPS2553 pin 5 to R27 / R28) is 12.8 mm with 4 vias; R27 / R28 are 3.4 mm from the pin. The datasheet §9.5.1 asks for it "as short as possible". The first rev-4 had 9.7 mm with no via. | Noise pick-up on the current-limit setting. | Pre-route it directly on F.Cu. | the re-route |
+| 8 | MINOR | USB_ILIM (TPS2553 pin 5 to R27 / R28) is 12.8 mm with 4 vias; R27 / R28 are 3.4 mm from the pin. The datasheet §9.5.1 asks for it "as short as possible". The first rev-4 had 9.7 mm with no via. | Noise pick-up on the current-limit setting. | Pre-route it directly on F.Cu. **Partly done 7 Oct:** the re-route's rip-up loop found no way round the RS-485 pairs, so it is now pre-routed before them, @ILIM@ (was 4 vias). A direct F.Cu run needs R27 out of the pairs' lane. | the re-route |
 | 9 | MINOR | QSPI_SS (BOOTSEL) runs 13.7 mm with 2 vias to R25 / SW1 on the flash's live chip-select. The design guide puts the resistor at the pin. | Load and emissions on the flash CS. | Move R25 next to pin 60. | rev-3 |
-| 10 | MINOR | J6 (SWDIO, SWCLK, GND, RUN) does not follow Raspberry Pi's 3-pin debug order (SC, GND, SD); no 100 Ω target resistors; no legend. | A Debug Probe needs individual leads. | Silk legend now; reorder at the next spin. | rev-3 |
-| 11 | MAJOR (firmware) | `usb_power_policy.h` builds as rev-3 unless `TAXELSCAN_BOARD_REV=4` is defined. A rev-4 build without it reads the CC status on GPIO27/29, which carry ADC_A / ADC_B here. An amplifier output at rest (~0.15 V) decodes as L/L, "3 A attached". | The harness is fed at the 632 mA limit from any port, including a 500 mA one. | `#error` when the macro is undefined. | rev-4 |
+| 10 | MINOR | J6 (SWDIO, SWCLK, GND, RUN) does not follow Raspberry Pi's 3-pin debug order (SC, GND, SD); no 100 Ω target resistors; no legend. | A Debug Probe needs individual leads. | **Reordered 7 Oct:** SWCLK, GND, SWDIO, RUN, with `SC GND SD RUN` in silk. The target resistors are still not fitted. | rev-3 |
+| 11 | MAJOR (firmware) | `usb_power_policy.h` builds as rev-3 unless `TAXELSCAN_BOARD_REV=4` is defined. A rev-4 build without it reads the CC status on GPIO27/29, which carry ADC_A / ADC_B here. An amplifier output at rest (~0.15 V) decodes as L/L, "3 A attached". | The harness is fed at the 632 mA limit from any port, including a 500 mA one. | **Done 7 Oct:** `#error` unless it is 3 or 4. | rev-4 |
 | 12 | MINOR (firmware / docs) | `firmware/rev3/PLAN.md` and the rev-1 `scan.h` still carry the rev-1 / rev-3 ADC map. rev-4 needs pins 27 / 29 = AINSEL 1 / 3 (round-robin mask 0x0A) with `adc_gpio_init` on 27 / 28 / 29. PLAN §7.1's "never call adc_gpio_init() on GPIO27 or 29" is backwards here. The SDK's default stdio UART0 (GPIO0 / 1) would drive USB_ILIM_HI and ROW_LATCH_MCU; PLAN's board header already leaves it out, so it must be used. Conversion errors (CS.ERR) are never checked. | Wrong channels, a pulled-down ADC input, a wrong current limit. | A rev-4 column in PLAN §3.1; the board header with no default UART; check CS.ERR. | rev-4 / rev-3 |
 | 13 | MINOR (docs) | The README said the internal ADC gives up "3×" in resolution. RP2350 Table 1685 gives ENOB 9.0 min / 9.5 typ: 1.6–2.3 LSB rms, 8.1–8.6 noise-free bits per conversion. Against rev-3's estimated 11.9 that is 10–14× more noise per conversion before oversampling. The same converter is on rev-1, the board that has shipped. | Expectations. | Corrected in README.md today. | rev-4 |
 | 14 | MINOR (docs) | The 20 Mbaud figure. The RP2350 UART tops out at UARTCLK / 16 = 9.375 Mbaud; 20 Mbit/s is the SN65HVD75's own maximum; the firmware plan (D5) runs a PIO UART at 12.5 Mbaud. | — | Corrected in ROUTING_STATUS.md and pairs_rev4.py today; the rev-3 README's bandwidth table (8 full maps at 80 fps = 1.39 MB/s) does not fit 12.5 Mbaud and needs redoing. | rev-3 |
@@ -67,7 +83,8 @@ the pieces that do exist need three corrections before they meet this board.
 
 - **Pins.** All 61 pins match the RP2350A QFN-60 pinout (datasheet Fig. 2,
   Tables 1674–1679).
-  - The supply pins on +3.3V (3.22–3.35 V with the TLV62569's ±2 % VFB) are all
+  - The supply pins on +3.3V (3.22–3.35 V with the TLV62569's ±2 % VFB; *7 Oct:*
+    3.18–3.43 V with the TPS62162's −3.5 / +4 % in power-save mode) are all
     within range: QSPI_IOVDD 2.7–3.6 V for the stacked flash, USB_OTP_VDD and
     VREG_AVDD 3.135–3.63 V, VREG_VIN 2.7–5.5 V.
   - DVDD ×3 and VREG_FB are on VCORE. VREG_PGND and the exposed pad are on GND, with
@@ -75,11 +92,13 @@ the pieces that do exist need three corrections before they meet this board.
 - **Regulator parts** match the datasheet.
   - L1 is the polarity-marked AOTA-B201610S3R3-101-T. Its pad 1 (the dot) is on VCORE,
     so the dot is on the output end as Figs. 25 / 26 / 28 require.
-  - COUT and CIN are 4.7 µF.
+  - COUT and CIN are 4.7 µF (*7 Oct:* 0402 now, Samsung CL05A475MP5NRNC; the
+    minimal design fits Murata's 6.3 V GRM155R60J475ME47D).
   - VREG_AVDD has 33 Ω + 4.7 µF and its own GND via.
   - VREG_FB is taken from C19's node.
   - In1 is cut out under L1 and the LX trace (Fig. 27).
-  - The layout around them is finding 1.
+  - The layout around them was finding 1. *7 Oct:* it is now the minimal
+    design's, at that design's offsets from pins 46–50.
 - **Boot.**
   - QSPI SD0–3 and SCLK have no copper.
   - QSPI_SS has its reset pull-up plus R25 1 kΩ to SW1, as the design guide's R6 / SW1.
@@ -118,6 +137,18 @@ the pieces that do exist need three corrections before they meet this board.
 - **TLV62569.** 0.6 × (1 + 180 / 40.2) = 3.287 V. L2 is 2.2 µH (Isat 5 A); about 40 µF
   sits on the output, inside the datasheet's tested matrix. EN is tied to VIN.
   Efficiency is 93–95 % at 10–100 mA.
+  - *7 Oct:* replaced by the **TPS62162** (finding 2).
+    - It is the fixed 3.3 V output, ±3 % (−3.5 / +4 % in power-save mode).
+    - Input 3–17 V, 20 V absolute maximum; UVLO 2.6–2.82 V falling.
+    - It runs at 100 % duty cycle when the input sags, so the far board's
+      3.68–3.99 V still makes 3.3 V.
+    - L2 (2.2 µH, Isat 5 A against a ≤ 2.45 A switch limit) with C23 22 µF is
+      TI's standard pairing. The roughly 33 µF on the rail (about 24 µF at bias)
+      is inside the 10–200 µF that Table 2 checks for 2.2 µH.
+    - EN is tied to VIN, FB to AGND as TI asks for the fixed parts, and PG is
+      left open.
+    - Efficiency from 5 V is 88–91 % at 10–100 mA (TI Figs. 12–13), a few mW
+      below the TLV62569's at this load.
 - **Budget.**
   - 20–34 mA per board at 3.3 V, plus ~35 mA while transmitting. That is 16–28 mA per
     board at 5 V.
@@ -164,7 +195,8 @@ the pieces that do exist need three corrections before they meet this board.
 - **Ratiometric.** The rows (ROW_VCC) and the ADC reference (ADC_AVDD) are two branches
   of +3.3 V, so slow rail droop cancels: 100 mV moves a reading by 0.04 LSB. Ripple
   cancels only below about 10 kHz: 2 % residual at 10 kHz, 16 % at 100 kHz. The
-  TLV62569 runs in power-save mode at this load, so scope its ripple at bring-up.
+  buck (the TPS62162 since 7 Oct, as the TLV62569 before it) runs in power-save mode
+  at this load, so scope its ripple at bring-up.
 - **Dark level.** It sits at 6 × the op-amp offset (±9.6 mV) with nothing to lift it, so
   about half the channels clip at code 0 in the dark. PLAN §7.1's "dark codes a few
   hundred counts up" test will misfire. Change the criterion, or add ≥ 2.2 MΩ from

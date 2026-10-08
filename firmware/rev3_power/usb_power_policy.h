@@ -1,13 +1,20 @@
 #pragma once
 #include <stdint.h>
 
-// Board revision the pin map is for: 3 (the default) or 4. rev-4 is rev-3
-// without the LTC1865L; it reads both sense banks on the RP2354A's own ADC, so
-// GPIO27 (and GPIO28 or 29) carry analog inputs and the TUSB320's two status
-// outputs moved to GPIO18/19, the pins rev-3's SPI bus used. Build rev-4
-// firmware with -DTAXELSCAN_BOARD_REV=4; boards/rev4/gen_rev4.py checks the map.
+// Board revision the pin map is for: 3 or 4, and there is no default. rev-4 is
+// rev-3 without the LTC1865L; it reads both sense banks on the RP2354A's own
+// ADC, so GPIO27 (and GPIO28 or 29) carry analog inputs and the TUSB320's two
+// status outputs moved to GPIO18/19, the pins rev-3's SPI bus used. A rev-4
+// build that fell back on rev-3's map would read the CC status on GPIO27/29,
+// where an amplifier output at rest decodes as "3 A attached", and feed the
+// harness at the high current limit from any port
+// (boards/rev4/VERIFICATION.md, finding 11). Build with
+// -DTAXELSCAN_BOARD_REV=3 or =4; boards/rev3/gen_rev3.py and
+// boards/rev4/gen_rev4.py check the two maps from the netlist side.
 #ifndef TAXELSCAN_BOARD_REV
-#define TAXELSCAN_BOARD_REV 3
+#error "define TAXELSCAN_BOARD_REV (3 or 4): the TUSB320 status pins differ between the boards"
+#elif TAXELSCAN_BOARD_REV != 3 && TAXELSCAN_BOARD_REV != 4
+#error "TAXELSCAN_BOARD_REV must be 3 or 4"
 #endif
 
 namespace taxelscan {

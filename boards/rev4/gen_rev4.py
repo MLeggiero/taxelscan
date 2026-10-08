@@ -159,10 +159,15 @@ PARTS = [
      "NEW: RS-485 sync, receive only (DE and DI strapped low)"),
 
     # --- new: power --------------------------------------------------------
-    ("U12", "Regulator_Switching", "TLV62569DBV", "TLV62569DBVR",
-     "Package_TO_SOT_SMD:SOT-23-5", "C141836",
-     "5 V -> 3.3 V buck. TI TLV62569DBVR. (Was C144206, a MIC2954 LDO in "
-     "SOT-223.)"),
+    ("U12", "Regulator_Switching", "TPS62162DSG", "TPS62162DSGR",
+     "Package_SON:Texas_DSG0008A_WSON-8-1EP_2x2mm_P0.5mm_EP0.9x1.6mm", "C40256",
+     "5 V -> 3.3 V buck, FIXED 3.3 V output (the 62161 is 1.8 V and the "
+     "62163 5 V, so the suffix is the rail voltage). TI TPS62162DSGR: 3-17 V "
+     "in, 20 V absolute maximum, so the USB-C hot-plug ring (to 7.4 V on "
+     "+5V_USB, VERIFICATION.md finding 2) cannot overstress it; 100% duty "
+     "cycle at the far end of the harness; UVLO 2.6-2.82 V. Thermal vias are "
+     "added at layout at 0.3 mm. (Was C141836, the TLV62569DBVR, 6 V "
+     "absolute maximum; before that C144206, a MIC2954 LDO in SOT-223.)"),
     ("U13", "Interface_USB", "TUSB320", "TUSB320LAIRWBR",
      "Package_DFN_QFN:Texas_X2QFN-12_1.6x1.6mm_P0.4mm", "C132554",
      "USB-C sink/current detection, GPIO mode; LAI required for dynamic current updates. Same 12-pin map as stock TUSB320 symbol; internal Rd replaces R13/R14"),
@@ -213,19 +218,23 @@ PARTS = [
      "A). The RP2354A's USB pins carry HBM protection only. The RS-485 bus "
      "pins need no external part: the SN65HVD75 has +-12 kV IEC 61000-4-2 "
      "contact protection on chip. CC1/CC2 rely on the TUSB320's +-7 kV HBM"),
-    ("R38", "Device", "R", "1R",
-     "Resistor_SMD:R_0603_1608Metric", "C861215",
-     "Hot-plug damper, first element in series with C46 across +5V_USB. A live USB cable "
-     "into ceramic-only input capacitance rings: the LC estimate peaked at "
-     "6.2-7.3 V against U12's 6 V absolute maximum. 1R + 10uF puts the "
-     "damping resistance near sqrt(L/C) of a 1 m cable into ~6 uF. THIN "
-     "FILM 0.1% 25ppm/C (Yageo RT0603BRD071RL) - no 0402 1R thin film is "
-     "stocked, so 0603"),
-    ("C46", "Device", "C", "10uF",
-     "Capacitor_SMD:C_0805_2012Metric", "C3039694",
+    ("R38", "Device", "R", "0.68R",
+     "Resistor_SMD:R_0603_1608Metric", "C27862",
+     "Hot-plug damper, first element in series with C46 across +5V_USB. A "
+     "live USB cable into ceramic-only input capacitance rings to nearly "
+     "twice VBUS. Simulated (verify/power/damper.py) from a 5.5 V supply "
+     "on a 1.5 uH / 0.08 R captive cable, 0.68R + 22uF holds +5V_USB to "
+     "6.8 V, inside U14's 7 V absolute maximum; 1R + 10uF let it reach "
+     "7.4 V. 0.68R is near sqrt(L/C) of that cable into ~4 uF. Takes "
+     "~0.17 mJ per plug-in (6.8 A peak for a few us). THICK FILM 1% 0603 "
+     "(UNI-ROYAL 0603WAF680LT5E): thick film takes the pulse better than "
+     "thin, and the value's tolerance does not matter here. (Was 1R, "
+     "C861215)"),
+    ("C46", "Device", "C", "22uF",
+     "Capacitor_SMD:C_0805_2012Metric", "C45783",
      "Hot-plug damper reservoir, behind R38 so it damps the ring instead "
-     "of joining it. Samsung CL21B106KAYQNNE, X7R 25 V, the same "
-     "reel as C9/C39"),
+     "of joining it; about 12 uF at 5 V. Samsung CL21A226MAQNNNE, X5R "
+     "25 V, the same reel as C23. (Was 10uF, C3039694)"),
 
     # --- passives ----------------------------------------------------------
     ("R1,R2", "Device", "R", "10k",
@@ -293,16 +302,7 @@ PARTS = [
      "fed from +3.3V like ROW_VCC, so the code stays ratiometric. This keeps "
      "IOVDD switching noise off it. THIN FILM 0.1% 25ppm/C "
      "(Yageo RT0402BRD0710RL)"),
-    ("R18", "Device", "R", "180k",
-     "Resistor_SMD:R_0402_1005Metric", "C852573",
-     "Buck feedback, top. THIN FILM 0.1% 25ppm/C (Yageo RT0402BRD07180KL). "
-     "With 0.1% parts and the 0.6 V +-1.5% reference the rail spans "
-     "3.24-3.34 V. (Was C25811, a 200k 0603.)"),
-    ("R19", "Device", "R", "40.2k",
-     "Resistor_SMD:R_0402_1005Metric", "C852775",
-     "Buck feedback, bottom. 0.6 x (1 + 180/40.2) = 3.29 V. THIN FILM 0.1% "
-     "25ppm/C (Yageo RT0402BRD0740K2L). (Was C25752, which is 12k.)"),
-    ("C1-C7", "Device", "C", "100nF",
+    ("C1-C7","Device", "C", "100nF",
      "Capacitor_SMD:C_0402_1005Metric", "C85858",
      "Per-IC decoupling. Murata GCM155R71H104KE02D, X7R 50 V, AEC-Q200"),
     ("C9", "Device", "C", "10uF",
@@ -353,10 +353,18 @@ PARTS = [
      "Resistor_SMD:R_0402_1005Metric", "C852729",
      "VREG_AVDD filter, with C43 - the RP2350 design guide's 33R + 4.7uF. "
      "THIN FILM 0.1% 25ppm/C (Yageo RT0402BRD0733RL)"),
-    ("C43,C44", "Device", "C", "4.7uF",
-     "Capacitor_SMD:C_0603_1608Metric", "C69335",
-     "C43 is the VREG_AVDD filter capacitor (with R35); C44 is the "
-     "VREG_VIN input reservoir at U9.49. Samsung CL10A475KA8NQNC, X5R 25 V"),
+    ("C43", "Device", "C", "4.7uF",
+     "Capacitor_SMD:C_0402_1005Metric", "C23733",
+     "CFILT, the VREG_AVDD filter capacitor (with R35), 0402 as in the "
+     "RP2350 minimal design, with its own ground via. Samsung "
+     "CL05A475MP5NRNC, X5R 10 V. (Was 0603, C69335)"),
+    ("C44", "Device", "C", "4.7uF",
+     "FlexiTac:C_0402_1005Metric_WideGap", "C23733",
+     "CIN, the core regulator's input capacitor: straddles VREG_VIN (U9.49) "
+     "and VREG_PGND (U9.47) with VREG_LX running between its pads, as the "
+     "RP2350 datasheet's Figure 26 and the minimal design (whose "
+     "GRM155R60J475ME47D is 6.3 V) lay it out. Samsung CL05A475MP5NRNC, X5R "
+     "10 V. (Was 0603, C69335, 5.7 mm from the pin)"),
     ("R37", "Device", "R", "10k",
      "Resistor_SMD:R_0402_1005Metric", "C844452",
      "SYNC_DE pull-down: every board is receive-only on the sync pair until "
@@ -386,7 +394,12 @@ PARTS = [
      "VBUS high frequency, at J5; C37 alone is bulk. Murata "
      "GCM155R71H104KE02D, X7R 50 V, AEC-Q200"),
     ("C19", "Device", "C", "4.7uF",
-     "Capacitor_SMD:C_0603_1608Metric", "C69335", "VCORE bulk. Samsung CL10A475KA8NQNC, X5R 25 V"),
+     "FlexiTac:C_0402_1005Metric_WideGap", "C23733",
+     "COUT, the core regulator's output capacitor: beside CIN (C44), "
+     "sharing its two-via ground, VREG_LX between its pads, VREG_FB taken "
+     "from its VCORE pad - RP2350 datasheet section 6.3.8, Figure 26. "
+     "Samsung CL05A475MP5NRNC, X5R 10 V: 4.7 uF +-20%, a few mOhm and well "
+     "under 6 nH. (Was 0603, C69335)"),
     ("C20,C21", "Device", "C", "15pF",
      "Capacitor_SMD:C_0402_1005Metric", "C338103",
      "Crystal load. C0G MANDATORY - an X7R here moves the USB clock with "
@@ -395,14 +408,17 @@ PARTS = [
      "C0G 50 V, AEC-Q200"),
     ("C22", "Device", "C", "4.7uF",
      "Capacitor_SMD:C_0603_1608Metric", "C69335",
-     "Buck input, reduced from 22uF for USB attach inrush. Samsung "
-     "CL10A475KA8NQNC, X5R 25 V (the 25 V rating keeps more capacitance at "
-     "5 V bias than a 16 V part); validate at bias"),
+     "Buck input, reduced from 22uF for USB attach inrush: it charges "
+     "through D2 when USB is plugged in. TI asks for 10 uF on the TPS6216x; "
+     "at this board's ~150 mA load 4.7 uF leaves a few mV of input ripple. "
+     "Samsung CL10A475KA8NQNC, X5R 25 V (the 25 V rating keeps more "
+     "capacitance at 5 V bias than a 16 V part); validate at bias"),
     ("C23", "Device", "C", "22uF",
      "Capacitor_SMD:C_0805_2012Metric", "C45783",
      "Buck OUTPUT (+3.3V). Samsung CL21A226MAQNNNE, X5R 25 V - no "
      "name-brand X7R >=25 V 22uF 0805 is stocked; this capacitor sets loop "
-     "stability and output ripple"),
+     "stability and output ripple. 2.2 uH + 22 uF is the TPS6216x's "
+     "standard LC (its Table 2)"),
     ("L1", "Device", "L", "AOTA-B201610S3R3-101-T",
      "FlexiTac:L_0806_2016Metric", "C42411119",
      "3.3uH, the RP2350 design guide's ONLY recommended part - Abracon "
@@ -412,9 +428,9 @@ PARTS = [
     ("L2", "Device", "L", "2.2uH",
      "Inductor_SMD:L_1210_3225Metric", "C2045365",
      "Buck output inductor. Murata DFE322520FD-2R2M=P2 (AEC-Q200): Isat 5 "
-     "A, 46 mOhm. The TLV62569 high-side current limit is 3 A MINIMUM, so "
-     "Isat must be >= 3 A - a generic 2.2uH 1210 rated 1 A saturates at "
-     "startup or into a short"),
+     "A, 46 mOhm. The TPS62162's high-side current limit is up to 2.45 A, "
+     "so Isat must be >= 2.5 A - a generic 2.2uH 1210 rated 1 A saturates "
+     "at startup or into a short"),
     ("D1,D2", "Device", "D_Schottky", "PMEG2005AEA",
      "Diode_SMD:D_SOD-323", "C179428",
      "OR the bus 5 V against USB VBUS. Nexperia PMEG2005AEA, 20 V 0.5 A "
@@ -444,9 +460,12 @@ PARTS = [
      "NEW: bring-up, BOOTSEL and standalone use"),
     ("J6", "Connector_Generic", "Conn_01x04", "SWD",
      "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical", "C5184785",
-     "SWDIO, SWCLK, GND, RUN - debug and reset. Wurth 61300411121, gold, "
-     "through-hole (hand or wave soldered). 2.54 mm on purpose: it is what "
-     "a debug probe cable and jumper wires actually fit"),
+     "SWCLK, GND, SWDIO, RUN - debug and reset. Pins 1-3 are Raspberry "
+     "Pi's 3-pin debug connector order (SC, GND, SD; RP-003139-SP), so the "
+     "Debug Probe's 3-pin lead fits pin 1 to pin 1 and RUN sits beside it. "
+     "Wurth 61300411121, gold, through-hole (hand or wave soldered). 2.54 "
+     "mm on purpose: it is what a debug probe cable and jumper wires "
+     "actually fit. (Was SWDIO, SWCLK, GND, RUN)"),
     ("SW1", "Switch", "SW_Push", "BOOTSEL",
      "Button_Switch_SMD:SW_SPST_B3U-1000P", "C231329",
      "Pulls QSPI_SS low. Omron B3U-1000P. (Was C139797, an ALPS 4.2 x 3.2 "
@@ -706,7 +725,9 @@ def build(rev1):
     # power-cycling a board that is halfway down a harness.
     n("RUN", "R20", "1")
     n("+3.3V", "R20", "2")
-    for pin, net in ((1, "SWDIO"), (2, "SWCLK"), (3, "GND"), (4, "RUN")):
+    # Pins 1-3 in Raspberry Pi's debug order - SC, GND, SD - so the Debug
+    # Probe's 3-pin lead goes on pin 1 to pin 1; RUN beside them on pin 4.
+    for pin, net in ((1, "SWCLK"), (2, "GND"), (3, "SWDIO"), (4, "RUN")):
         n(net, "J6", p("J6", "Pin_%d" % pin))
 
     # One 100nF per supply pin on this rail, at last. It was 14 caps against
@@ -819,21 +840,23 @@ def build(rev1):
     n("+5V_USB", "D2", p("D2", "A"))
     n("+5V", "D2", p("D2", "K"))
 
+    # The buck is the TPS62162, the FIXED 3.3 V member of the TPS6216x: it
+    # senses its output on VOS through an internal divider, so the board has
+    # no feedback resistors to get wrong. FB goes to AGND, as TI recommends
+    # for the fixed versions (it is pulled down inside). The power-good
+    # output, open drain and unused, is left open, which TI allows. Its 20 V
+    # input rating is why it replaced the TLV62569 (6 V): a USB-C hot plug
+    # rings +5V to over 7 V.
     n("+5V", "U12", p("U12", "VIN"))
     n("+5V", "U12", p("U12", "EN"))
-    n("GND", "U12", p("U12", "GND"))
+    n("GND", "U12", p("U12", "PGND"))
+    n("GND", "U12", p("U12", "AGND"))
+    n("GND", "U12", p("U12", "PAD"))
+    n("GND", "U12", p("U12", "FB"))
+    n("+3.3V", "U12", p("U12", "VOS"))
     n("SW_NODE", "U12", p("U12", "SW"))
     n("SW_NODE", "L2", "1")
     n("+3.3V", "L2", "2")
-    # The TLV62569 is an ADJUSTABLE part: FB servos to an internal reference,
-    # so it takes a divider tap and NOT the output. Tying it to +3.3V directly
-    # would regulate the rail down to the reference and brown out the board -
-    # a mistake that looks like a dead regulator rather than a wiring error.
-    n("+3.3V", "R18", "1")
-    n("FB", "R18", "2")
-    n("FB", "R19", "1")
-    n("FB", "U12", p("U12", "FB"))
-    n("GND", "R19", "2")
     n("+5V", "C22", "1")
     n("GND", "C22", "2")
     n("+5V", "C27", "1")
@@ -1241,8 +1264,13 @@ def check(nets, rev1):
         want(len(nets.get(sig, [])) >= 2, "%s is a one-pin net" % sig)
         want(any(r == "J6" for r, _ in nets.get(sig, [])),
              "%s does not reach the debug connector" % sig)
-    want(("J6", p("J6", "Pin_3")) in pins("GND"),
-         "the debug connector has no ground reference")
+    # Raspberry Pi's 3-pin debug order on pins 1-3 (SC, GND, SD), checked
+    # pin by pin: a swap keeps every net connected and still fails at the
+    # probe, which is the mistake rev-3 made.
+    for pin, net in ((1, "SWCLK"), (2, "GND"), (3, "SWDIO"), (4, "RUN")):
+        want(("J6", p("J6", "Pin_%d" % pin)) in pins(net),
+             "J6 pin %d is not %s - pins 1-3 must be SC, GND, SD for the "
+             "Debug Probe's lead, RUN on pin 4" % (pin, net))
     for i in range(1, 4):
         jp = "JP%d" % i
         want((jp, p(jp, "B")) in pins("GND"),
@@ -1376,16 +1404,21 @@ def check(nets, rev1):
          "the buck has no inductor between SW and +3.3V")
     want(not any(r == "U12" and pin == p("U12", "SW") for r, pin in nets["+3.3V"]),
          "the buck's switch node is shorted to its output")
-    # FB on a divider tap, never on the output: see the note in build().
-    want(("U12", p("U12", "FB")) not in pins("+3.3V"),
-         "the buck's FB is tied to its output - it will regulate to the reference")
-    want(("R18", "1") in pins("+3.3V") and ("R18", "2") in pins("FB")
-         and ("R19", "1") in pins("FB") and ("R19", "2") in pins("GND"),
-         "the buck feedback divider is not between +3.3V and GND")
-    # ... and its VALUES. Topology alone passes with E24 parts that would put
-    # the rail at 3.62 V, i.e. at the MCU's absolute maximum.
-    want(bom_value("R18") == "180k" and bom_value("R19") == "40.2k",
-         "the buck divider is not 180k/40.2k - the rail will not be 3.29 V")
+    # The rail voltage is the part number: TPS62161 is 1.8 V and TPS62163
+    # 5 V in the same package with the same pins, and either would pass every
+    # connectivity check below. 5 V on +3.3V is over the MCU's absolute
+    # maximum.
+    want(bom_value("U12") == "TPS62162DSGR",
+         "U12 is %s, not the fixed 3.3 V TPS62162DSGR - the TPS6216x suffix "
+         "sets the rail voltage" % bom_value("U12"))
+    # VOS is the fixed version's only feedback: it must see the output.
+    want(("U12", p("U12", "VOS")) in pins("+3.3V"),
+         "the buck's VOS does not sense +3.3V - the output runs open loop")
+    want(("U12", p("U12", "FB")) in pins("GND") and ("U12", p("U12", "AGND")) in pins("GND")
+         and ("U12", p("U12", "PAD")) in pins("GND"),
+         "the fixed-output buck's FB / AGND / thermal pad are not on ground")
+    want(("U12", p("U12", "VIN")) in pins("+5V") and ("U12", p("U12", "EN")) in pins("+5V"),
+         "the buck is not fed and enabled from +5V")
 
     # No connector shell may be left floating.
     for conn in ("J1", "J2", "J3", "J4"):
@@ -1411,8 +1444,8 @@ def check(nets, rev1):
          % sorted(pins("USB_SNUB")))
     want(("R38", "1") in pins("+5V_USB") and ("C46", "2") in pins("GND"),
          "the hot-plug damper does not span +5V_USB to GND")
-    want(bom_value("R38") == "1R" and bom_value("C46") == "10uF",
-         "the hot-plug damper is not 1R + 10uF")
+    want(bom_value("R38") == "0.68R" and bom_value("C46") == "22uF",
+         "the hot-plug damper is not 0.68R + 22uF")
 
     # --- every part can actually be placed ---------------------------------
     for refs, _lib, _sym, _v, fp, _lcsc, _note in PARTS:

@@ -144,6 +144,66 @@ x 148–153, y 119–130 is now empty copper over the ground plane. Nothing on t
 board wants to move into it; it is routing room, and the routing uses it (see
 ROUTING_STATUS.md).
 
+## After the verification: the regulator corner and the buck (7 October 2026)
+
+`VERIFICATION.md` found the RP2354A's core regulator laid out unlike the RP2350
+datasheet's Figure 26, and U12's 6 V input rating inside the reach of a USB-C
+hot plug. `tools/fix_rev4.py` re-placed those two corners, and moved R30 / R31
+for the re-route (below). Nothing else moved.
+
+**The regulator corner** is now Raspberry Pi's RP2350A minimal design, part
+for part. Each part sits at that design's offset from U9's pin 48, the
+VREG_LX pin at (128.506, 117.201):
+
+- C44 (CIN) at (0, −1.16) straddles pins 49 / 47; C19 (COUT) is at
+  (0, −2.10); L1 is at (0, −3.75) with its dot to the west, over COUT's VCORE
+  pad.
+- CFILT (C43) and its 33 Ω (R35) are at (+2.2, −1.62) and (+2.2, −3.48).
+- R23 / R24 go north-west of pins 51 / 52, at the minimal design's R7 / R8.
+- C18 sits north-west of pin 54, serving pins 53 and 54, which are tied in
+  the ring.
+- C16 sits beside C43, and C17 at R35's +3.3 V pad.
+
+C19, C44 and C43 went from 0603 to 0402: CIN and COUT on a project land with
+the minimal design's 0.56 mm gap between the pads, so VREG_LX can run between
+them.
+
+**The buck** is the TPS62162 in a WSON-8, in TI's layout: C27 across VIN /
+PGND on the left, C22 under the IC, L2 east of SW and C23 east of L2. R18 /
+R19 are gone, since the TPS62162 has a fixed output.
+
+| part | was | now | |
+|---|---|---|---|
+| C16 | (129.450, 115.600) 90° | (131.600, 115.580) 270° | |
+| C17 | (128.099, 115.600) 90° | (131.950, 113.210) 0° | |
+| C18 | (126.500, 115.600) 90° | (125.100, 116.100) 180° | |
+| C19 | (124.000, 115.500) 180° | (128.506, 115.101) 0° | 0603 → 0402, wide gap |
+| C43 | (130.850, 113.952) 90° | (130.706, 115.580) 270° | 0603 → 0402 |
+| C44 | (123.090, 113.400) 180° | (128.506, 116.041) 0° | 0603 → 0402, wide gap |
+| L1 | (126.050, 113.600) 0° | (128.506, 113.451) 0° | |
+| R23 | (128.940, 113.500) 0° | (125.406, 113.250) 90° | |
+| R24 | (130.950, 116.000) 0° | (126.406, 113.250) 90° | |
+| R35 | (130.415, 111.496) 270° | (130.706, 113.720) 270° | |
+| U12 | (106.425, 120.172) 180° | (106.400, 120.750) 0° | TLV62569 SOT-23-5 → TPS62162 WSON-8 |
+| C22 | (109.196, 120.396) 90° | (105.600, 122.850) 0° | |
+| C23 | (114.048, 121.398) 90° | (113.000, 122.550) 0° | |
+| C27 | (103.540, 120.220) 270° | (104.420, 120.300) 90° | |
+| L2 | (111.497, 120.906) 270° | (109.600, 121.300) 270° | |
+| R18, R19 | (104.788, 123.264), (104.769, 122.333) | removed | |
+| R30 | (120.850, 124.500) 180° | (143.000, 129.950) 180° | under U14 pin 3 |
+| R31 | (120.850, 125.600) 180° | (145.700, 130.150) 180° | under U14 pin 4 |
+
+**R30 / R31** are U14's EN pull-down and FAULT pull-up. rev-3 left them west of
+U9, so `USB_BUS_EN` and `USB_PWR_FAULT` ran from U9's east side under the MCU
+and back to U14 (38–52 mm, 4–6 vias). In this re-route the rip-up loop could not
+fit both of them, plus `USB_CC_OUT2`, past U9's east side among the pre-routed
+nets. Now each resistor sits under its pin, with a straight via to its plane;
+U14's reference moved below them.
+
+R38 and C46 kept their places with new values (0.68 Ω, 22 µF). J6 kept its
+place with new pin nets. The new silkscreen is a `1` beside pin 1 of J3 and
+J4 and `SC GND SD RUN` above J6.
+
 ## What did not move
 
 Everything else: 97 of the 104 parts on a middle board are at rev-3's exact

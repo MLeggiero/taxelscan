@@ -1,7 +1,7 @@
 """fr_finish.py in.kicad_pcb out.kicad_pcb [--rounds N] [--fixed NET,...] [--tidy-only] - finish a freerouting result.
 
---tidy-only: the board is finished already; only the tidy and detour passes,
-the prune and the widening below.
+--tidy-only: the board is finished already; only the tidy, detour and
+staircase passes, the prune and the widening below.
 
 ses_import.py brings freerouting's session back onto the board; what it leaves
 is finished here, with the same exact-geometry model and the octilinear router
@@ -31,7 +31,8 @@ Then the crystal: XOUT_MCU (pin 22 to the series resistor R36) and XIN
 (pin 21 to C20 and Y1) leave side by side and belong on F.Cu without a via.
 Freerouting ran XIN between R36's pads and sent XOUT_MCU over it through two
 vias; if either has a via, both are ripped and drawn again on F.Cu, XOUT_MCU
-first.
+first, and if that leaves either open every net it touched goes back as it
+was. (preroute_rev4.py now lays the crystal itself, so this finds no via.)
 
 And the op-amp outputs: AMP_A and AMP_B (U7 to the ADC cells' 51-ohm
 resistors) may leave F.Cu - they have to cross SENSE_B - but freerouting put
@@ -39,7 +40,8 @@ resistors) may leave F.Cu - they have to cross SENSE_B - but freerouting put
 redrawn with B.Cu costed everywhere, so they use it only to cross.
 
 Then a tidy pass, twice over: every signal net that has a via, the pre-routed
-ones, the op-amp outputs and +5V_USB (with its pre-laid VBUS ties) aside, is
+ones, the op-amp outputs, +5V_USB (with its pre-laid VBUS ties) and +5V (with
+the buck's input loop) aside, is
 taken off alone and routed again by rr3 with everything else in place. The new
 routing stays if it saves a via and is at most a quarter longer, or, with as
 many vias, is 1 mm shorter; otherwise the net goes back exactly as it was. The
@@ -48,6 +50,13 @@ ripped - and this takes them out. A short net (pads' spanning tree under 15 mm)
 still more than twice that long plus 3 mm is ripped with one or two of the
 nets whose copper lies between its pads, and all are routed again, it first;
 kept if the lot is 2 mm shorter with no more vias.
+
+Then the staircases: where rr3's 0.025 mm grid stepped round a curve (a
+keep-out's rounded corner), it left short horizontal and vertical segments in
+turn. Each such run, on any net (the pre-routed ones too), is drawn as the
+diagonal between its ends (and the straight rest, when they are not at 45
+degrees) where the exact check allows and no corner turns acute; the segments
+either side are merged with it where they line up.
 
 Last, the widths: freerouting routed every net that touches the RP2354A or the
 TUSB320 at 0.10 mm, end to end (one width per net class), where only the
@@ -155,15 +164,27 @@ CRYSTAL = ("XOUT_MCU", "XIN")
 
 
 def crystal(m, log, keep):
-    """XOUT_MCU and XIN on F.Cu without vias, XOUT_MCU first."""
+    """XOUT_MCU and XIN on F.Cu without vias, XOUT_MCU first; if that leaves anything
+    open, every net it touched goes back as it was."""
     if not any(it["kind"] == "via" for it in m.items if it["net"] in CRYSTAL):
         return True
+    snaps = collections.defaultdict(list)
+    for it in m.items:
+        if it["kind"] in ("track", "via"):
+            snaps[it["net"]] += st.snapshot([it])
     m.remove([it["uuid"] for it in m.items if it["net"] in CRYSTAL and it["kind"] in ("track", "via")])
     m.index()
     res = rr3.rrr3(m, list(CRYSTAL), protect=(keep | SENSITIVE) - set(CRYSTAL),
                    layers_fn=lambda n: ("F",) if n in CRYSTAL else layers_of(n),
                    width_fn=lambda n: 0.15 if n in CRYSTAL else width_of(m, n), log=log, max_iter=60)
-    log("crystal: %s" % ("XOUT_MCU and XIN on F.Cu, no via" if not res["left"] else "OPEN %s" % res["left"]))
+    if res["left"]:
+        back = set(CRYSTAL) | set(res["touched"])
+        m.remove([it["uuid"] for it in m.items if it["net"] in back and it["kind"] in ("track", "via")])
+        m.index()
+        for n in sorted(back):
+            st.restore(m, n, snaps[n])
+    log("crystal: %s" % ("XOUT_MCU and XIN on F.Cu, no via" if not res["left"] else
+                         "no F.Cu way (%s open); %s put back as they were" % (sorted(res["left"]), ", ".join(sorted(back)))))
     return not res["left"]
 
 
@@ -297,6 +318,105 @@ def detours(m, log, skip, short=15.0):
                 st.restore(m, n, snaps[n])
 
 
+def destair(m, log, step=0.13):
+    """Staircases - rr3's 0.025 mm grid stepping round a curve - drawn as their diagonal."""
+    key = lambda p: (round(p[0], 4), round(p[1], 4))
+
+    def joints():
+        ends = collections.defaultdict(list)
+        for it in m.items:
+            if it["kind"] == "track":
+                for p in (it["a"], it["c"]):
+                    ends[(it["net"], next(iter(it["lay"])), key(p))].append(it)
+        return ends
+
+    def bare(net, l, p):                  # no via or pad of the net there
+        its, tree = m.by_layer[l]
+        pt = shapely.Point(p)
+        return not any(its[k]["kind"] in ("via", "pad") and its[k]["net"] == net and its[k]["geom"].intersects(pt)
+                       for k in tree.query(pt))
+
+    def far(it, p):
+        return it["c"] if key(it["a"]) == p else it["a"]
+
+    def axis(it):
+        dx, dy = abs(it["c"][0] - it["a"][0]), abs(it["c"][1] - it["a"][1])
+        return "H" if dy < 1e-6 < dx else "V" if dx < 1e-6 < dy else None
+
+    def away(p, q):
+        d = math.dist(p, q)
+        return ((q[0] - p[0]) / d, (q[1] - p[1]) / d) if d > 1e-9 else (0.0, 0.0)
+
+    ends = joints()
+
+    def stair(net, l, p):
+        e = ends[(net, l, p)]
+        return (len(e) == 2 and {axis(e[0]), axis(e[1])} == {"H", "V"} and
+                max(math.dist(it["a"], it["c"]) for it in e) <= step and bare(net, l, p))
+
+    seen, runs, segs = set(), 0, 0
+    for net, l, p in list(ends):
+        if (net, l, p) in seen or not stair(net, l, p):
+            continue
+        seen.add((net, l, p))
+        chain, tips = list(ends[(net, l, p)]), []
+        for cur in list(chain):
+            q = key(far(cur, p))
+            while (net, l, q) not in seen and stair(net, l, q):
+                seen.add((net, l, q))
+                cur = next(s for s in ends[(net, l, q)] if s is not cur)
+                chain.append(cur)
+                q = key(far(cur, q))
+            tips.append(q)
+        e0, e1 = tips
+        dx, dy = e1[0] - e0[0], e1[1] - e0[1]
+        if (sum(abs(it["c"][0] - it["a"][0]) for it in chain) > abs(dx) + 1e-4 or
+                sum(abs(it["c"][1] - it["a"][1]) for it in chain) > abs(dy) + 1e-4):
+            continue                        # not monotone: a jog, not a staircase
+        d = min(abs(dx), abs(dy))
+        mx, my = math.copysign(d, dx), math.copysign(d, dy)
+        if d < 0.01 or abs(abs(dx) - abs(dy)) < 1e-4:
+            options = [[e0, e1]]
+        else:
+            options = [[e0, (e0[0] + mx, e0[1] + my), e1], [e0, (e1[0] - mx, e1[1] - my), e1]]
+        w = min(it["w"] for it in chain)
+        ids = {it["uuid"] for it in chain}
+        for pl in options:
+            # no acute corner with what meets the ends
+            acute = False
+            for tip, nxt in ((pl[0], pl[1]), (pl[-1], pl[-2])):
+                u = away(tip, nxt)
+                for it in ends[(net, l, key(tip))]:
+                    if it["uuid"] not in ids:
+                        v = away(tip, far(it, key(tip)))
+                        acute |= u[0] * v[0] + u[1] * v[1] > 1e-6
+            if not acute and not any(m.check_track(net, l, a, c, w) for a, c in zip(pl, pl[1:])):
+                m.remove(list(ids))
+                m.add(net, [(l, a, c) for a, c in zip(pl, pl[1:])], [], w)
+                runs += 1
+                segs += len(chain)
+                break
+    m.index()
+    # the segments either side of a new diagonal, in line with it: one segment
+    merged, again = 0, True
+    while again:
+        again = False
+        ends = joints()
+        for (net, l, p), e in ends.items():
+            if len(e) != 2 or abs(e[0]["w"] - e[1]["w"]) > 1e-6 or not bare(net, l, p):
+                continue
+            q0, q1 = far(e[0], p), far(e[1], p)
+            u, v = away(p, q0), away(p, q1)
+            if abs(u[0] * v[1] - u[1] * v[0]) < 1e-4 and u[0] * v[0] + u[1] * v[1] < 0:
+                m.remove([e[0]["uuid"], e[1]["uuid"]])
+                m.add(net, [(l, q0, q1)], [], e[0]["w"])
+                m.index()
+                merged += 1
+                again = True
+                break
+    log("staircases: %d drawn as diagonals (%d segments), %d joint(s) merged" % (runs, segs, merged))
+
+
 def widen(m, log, skip):
     """Widen 0.10 mm tracks where the exact check allows; returns {uuid: old width}."""
     targets = {}
@@ -383,8 +503,12 @@ def main():
             if not crystal(m, log, keep):
                 log("crystal could not be redrawn")
             amp(m, log, keep)
-        tidy(m, log, keep | set(AMP) | {"+5V_USB"})
+        # +5V carries the buck's input loop at U12's pins (preroute_rev4.buck_in): the
+        # rip-up may move the rest of the net, but the tidy pass, which takes a whole
+        # net off and routes it again, leaves it alone
+        tidy(m, log, keep | set(AMP) | {"+5V_USB", "+5V"})
         detours(m, log, keep | set(AMP) | SENSITIVE)
+        destair(m, log)
     d, c = rr2.prune(m, a.dst, "frfin", log=log)
     if not d["unconnected_items"] and not any(k in COPPER for k in c):
         old = widen(m, log, fixed | set(PLANE))

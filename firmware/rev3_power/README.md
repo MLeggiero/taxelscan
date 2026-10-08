@@ -5,13 +5,17 @@ provides the RP2354A/Pico SDK adapter with a 1 ms hardware timer and TinyUSB
 configuration checking. This directory does not replace the rev1 scanning
 application or implement rev3 ADC/RS485 acquisition.
 
-The pin map defaults to the rev-3 board. For rev-4 (`boards/rev4`, the same
-circuit without the external ADC) define `TAXELSCAN_BOARD_REV=4`: the TUSB320's
-OUT1/OUT2 move from GPIO27/29 to GPIO18/19, because GPIO27 and GPIO29 are ADC
-inputs there.
+The pin map is chosen by `TAXELSCAN_BOARD_REV`, which must be defined: 3 for
+the rev-3 board, 4 for rev-4 (`boards/rev4`, the same circuit without the
+external ADC), where the TUSB320's OUT1/OUT2 move from GPIO27/29 to GPIO18/19
+because GPIO27 and GPIO29 are ADC inputs. Without it the build stops with an
+`#error`: a rev-4 board running rev-3's map would read an amplifier output as
+"3 A attached" and feed the harness at the high limit from any port.
 
-Add `usb_power_pico.cpp` to the rev3 Pico SDK executable and link `pico_stdlib`,
-`hardware_gpio`, `hardware_sync`, and `tinyusb_device`. Initialize it on core 0
+Add `usb_power_pico.cpp` to the rev3 Pico SDK executable, link `pico_stdlib`,
+`hardware_gpio`, `hardware_sync`, and `tinyusb_device`, and give the board
+revision, e.g. `target_compile_definitions(<executable> PRIVATE
+TAXELSCAN_BOARD_REV=4)`. Initialize it on core 0
 after initializing TinyUSB:
 
 ```cpp
@@ -50,7 +54,7 @@ See [USB_POWER.md](../../boards/rev3/USB_POWER.md) for the circuit and budgets.
 The policy tests need only a C++17 compiler:
 
 ```sh
-c++ -std=c++17 -Wall -Wextra -Werror test_usb_power.cpp -o test_usb_power
+c++ -std=c++17 -Wall -Wextra -Werror -DTAXELSCAN_BOARD_REV=3 test_usb_power.cpp -o test_usb_power
 ./test_usb_power
 c++ -std=c++17 -Wall -Wextra -Werror -DTAXELSCAN_BOARD_REV=4 test_usb_power.cpp -o test_usb_power4
 ./test_usb_power4
