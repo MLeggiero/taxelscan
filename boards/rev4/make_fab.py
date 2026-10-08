@@ -202,16 +202,17 @@ def main():
             "Vias are 0.3 mm drill / 0.5 or 0.6 mm pad: a 0.10 mm annular ring,",
             "inside JLCPCB's via rule (pad >= hole + 0.10 mm) at no extra cost.",
             "",
-            "120 via holes lie wholly (11) or partly (109) inside SMD pad",
+            "107 via holes lie wholly (11) or partly (96) inside SMD pad",
             "openings, including all 7 ground vias in U9's exposed pad, which",
             "sit in the middle of its paste windows. Tenting cannot cover them.",
             "ORDER THE VIAS EPOXY FILLED AND COPPER CAPPED (JLCPCB 'Via Covering:",
             "Epoxy Filled & Capped'), or solder paste drains into the holes: dry",
-            "joints under the QFN and tombstoned 0201/0402s (35 of them have a via",
+            "joints under the QFN and tombstoned 0201/0402s (26 of them have a via",
             "hole on only one pad). Counted by tools/via_in_pad.py, which gives",
-            "rev-3 150 / 18 / 132 / 45 on the same definition, and rev-4 before its",
-            "re-route 136 / 17 / 119 / 37. The re-route put R27.2's ground via in",
-            "its pad: BUS_N passes where it was.",
+            "rev-3 150 / 18 / 132 / 45 on the same definition, the first rev-4",
+            "136 / 17 / 119 / 37, and the board before the 7 October fixes",
+            "120 / 11 / 109 / 35. The re-routes put R27.2's ground via in its pad:",
+            "BUS_N passes where it was.",
             "")))
     print("  %-22s fab/STACKUP-NOTES.txt" % "fab notes")
 
