@@ -61,9 +61,10 @@ either side are merged with it where they line up.
 Last, the widths: freerouting routed every net that touches the RP2354A or the
 TUSB320 at 0.10 mm, end to end (one width per net class), where only the
 0.4 mm-pitch pins need it. Each such track is widened back to 0.15 mm (VCORE,
-the core supply, to 0.25 / 0.20 / 0.15 when it was not pre-routed at 0.20)
-wherever the exact check allows it, and a widening the DRC then objects to is
-undone.
+the core supply, to 0.25 / 0.20 / 0.15 when it was not pre-routed at 0.20),
+and the 5 V rails' 0.30 mm to 0.60 / 0.50 / 0.40 (+5V_BUS, the harness
+pass-through) or 0.50 / 0.40 (+5V, +5V_USB), wherever the exact check allows
+it; a widening the DRC then objects to is undone.
 
 Unless the corner nets are --fixed (pre-routed), one corner is drawn first
 rather than searched: the RP2354A's ADC pins.
@@ -92,7 +93,9 @@ import straighten_rev4 as st
 PLANE = ("GND", "+3.3V")
 SENSITIVE = {"VREG_LX", "VREG_AVDD", "SW_NODE", "XIN", "XOUT", "XOUT_MCU", "USB_BUS_SW",
              "+5V_USB"}     # +5V_USB carries D5.5's and J5's pre-laid VBUS ties (preroute_rev4.vbus_d5 / vbus_j5)
-WIDEN = {"VCORE": (0.25, 0.2, 0.15)}
+WIDEN = {"VCORE": (0.25, 0.2, 0.15),
+         "+5V_BUS": (0.6, 0.5, 0.4),      # the harness pass-through: every board carries the boards after it
+         "+5V": (0.5, 0.4), "+5V_USB": (0.5, 0.4)}
 COPPER = {"clearance", "hole_clearance", "copper_edge_clearance", "track_width", "shorting_items",
           "tracks_crossing", "solder_mask_bridge", "hole_to_hole", "via_diameter", "annular_width",
           "drill_out_of_range", "connection_width", "items_not_allowed"}

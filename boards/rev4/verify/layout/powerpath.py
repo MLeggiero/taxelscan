@@ -23,13 +23,13 @@ PATHS = [
     ("+5V_USB", "J5.B9", "U14.1", "USB VBUS (west pins) to the harness switch"),
     ("+5V_USB", "J5.A9", "D2.2", "USB VBUS to this board's OR diode"),
     ("USB_BUS_SW", "U14.6", "D4.2", "switch output to the blocking diode"),
-    ("+5V", "D1.1", "U12.4", "OR output to the buck input"),
-    ("+5V", "D2.1", "U12.4", "OR output to the buck input"),
+    ("+5V", "D1.1", "U12.2", "OR output to the buck input (TPS62162 VIN, pin 2)"),
+    ("+5V", "D2.1", "U12.2", "OR output to the buck input (TPS62162 VIN, pin 2)"),
     ("ROW_VCC", "R5.2", "U1.16", "row rail to U1"),
     ("ROW_VCC", "R5.2", "U4.16", "row rail to U4"),
     ("VCORE", "L1.1", "U9.6", "core rail to DVDD pin 6"),
     ("VCORE", "L1.1", "U9.39", "core rail to DVDD pin 39"),
-    ("SW_NODE", "U12.3", "L2.1", "buck switch node"),
+    ("SW_NODE", "U12.7", "L2.1", "buck switch node"),
     ("VREG_LX", "U9.48", "L1.2", "core regulator switch node"),
 ]
 
