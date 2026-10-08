@@ -17,7 +17,9 @@ The three findings to deal with before ordering are fixed, and so are the J6
 order (10), the firmware default (11) and, on the way, QSPI_IOVDD's capacitor
 (4). [README.md](README.md) ("Fixed after the verification") and
 [PLACEMENT.md](PLACEMENT.md) describe the changes. The board was re-placed in
-the regulator and buck corners and re-routed from scratch. The rest of this
+the regulator and buck corners, R30 / R31 moved next to U14, and the board
+re-routed from scratch (8 October, [ROUTING_STATUS.md](ROUTING_STATUS.md)). The
+re-route brought three small new items, findings 15–17. The rest of this
 file is the 5 October verification. Notes marked *7 Oct* bring it up to date
 where the fixes changed an answer; the findings table marks what is done.
 
@@ -25,7 +27,16 @@ Re-checked on the re-routed board:
 
 | check | result |
 |---|---|
-@STATUS_TABLE@
+| KiCad 10.0.6 DRC, zones refilled | 0 unconnected, 0 copper violations; rev-3's 5 silkscreen warnings |
+| Schematic parity | 199 items, all the leading-`/` name prefix or J5's two open SBU pins |
+| ERC | 0 errors |
+| `gen_rev4.py` / `check_faults.py` | 134 of 134 nets / 42 of 42: two new faults (the 5 V TPS62163 fitted as U12; J6 back in rev-3's order), and the FB probe is now VOS left off the output |
+| `firmware/rev3_power` native tests | pass with `-DTAXELSCAN_BOARD_REV=3` and `=4`; a build without the flag, or with 5, stops at `#error` |
+| netlist against rev-3 (`verify/netdiff.py`) | the 5 October changes, plus R18 / R19 and net FB gone, U12's pins for the TPS62162 and J6 re-pinned. Nothing else changed |
+| regulator layout (`verify/layout/vreg_loop.py`, `gndpath.py`) | CIN 1.00 mm from VREG_VIN, its ground 1.00 mm from VREG_PGND and 0.94 mm from COUT's, all on F.Cu; loop 2.60 mm² (the minimal design 2.28, 5 October about 20); VREG_FB 2.45 mm from COUT with no via (was 6.2 mm with 2) |
+| hot plug (`verify/power/damper.py`) | +5V_USB ≤ 6.78 V (U14: 7 V) and U12's VIN ≤ 6.50 V (TPS62162: 20 V) for 5.0–5.5 V supplies and 0.5–2 µH cables |
+| layout re-measured (below) | as before, except U13's VDD (its C40 now reaches it through the plane), the harness pass-through (134 mΩ, was 101) and one via 0.41 mm from J5's peg hole |
+| `fab/` against the board | regenerated: 300 via drills = 300 vias; 4 J5 shield slots, 4 J6 holes, 2 NPTH pegs; 102 / 104 parts in the CPLs; 69 BOM lines, all with LCSC numbers |
 
 ## Verdict
 
@@ -64,20 +75,23 @@ the pieces that do exist need three corrections before they meet this board.
 
 | # | | finding | consequence | fix | since |
 |---|---|---|---|---|---|
-| 1 | **MAJOR** | Core regulator layout departs from RP2350 datasheet §6.3.8 / Fig. 26, which "must be strictly followed". CIN (C44, 4.7 µF) is 5.7 mm from VREG_VIN and reaches it only through the planes; pin 49 has only C17 (100 nF) locally. COUT's (C19) ground is 5.9 mm from VREG_PGND. The LX → L1 → C19 → GND → PGND loop is about 20 mm² against 2–3 mm² in Raspberry Pi's minimal design. | The design guide (§2.1) says other layouts "work… well enough to execute code" but may not hold the output correct across load. DVDD must stay within 1.05–1.16 V. | **Done 7 Oct.** Re-placed as Raspberry Pi's minimal design: CIN straddling pins 49 / 47, COUT beside it, the two-via ground point, L1 above, LX straight up between their pads, CFILT on its own via, VREG_FB from COUT; R23 / R24 north-west of the USB pins. Loop @LOOP@ mm². Still scope VCORE at pin 23 under load steps at bring-up. | rev-3 |
+| 1 | **MAJOR** | Core regulator layout departs from RP2350 datasheet §6.3.8 / Fig. 26, which "must be strictly followed". CIN (C44, 4.7 µF) is 5.7 mm from VREG_VIN and reaches it only through the planes; pin 49 has only C17 (100 nF) locally. COUT's (C19) ground is 5.9 mm from VREG_PGND. The LX → L1 → C19 → GND → PGND loop is about 20 mm² against 2–3 mm² in Raspberry Pi's minimal design. | The design guide (§2.1) says other layouts "work… well enough to execute code" but may not hold the output correct across load. DVDD must stay within 1.05–1.16 V. | **Done 7 Oct.** Re-placed as Raspberry Pi's minimal design: CIN straddling pins 49 / 47, COUT beside it, the two-via ground point, L1 above, LX straight up between their pads, CFILT on its own via, VREG_FB from COUT; R23 / R24 north-west of the USB pins. Loop 2.6 mm² (`verify/layout/vreg_loop.py`). Still scope VCORE at pin 23 under load steps at bring-up. | rev-3 |
 | 2 | **MAJOR** | Hot plug, simulated: from a fixed supply with a captive cable (1.5 µH, 0.08 Ω), U12's VIN peaks at 6.3–6.5 V and +5V_USB at 6.6–6.8 V, even with the damper. Limits are 6 V (TLV62569) and 7 V (TPS2553). With cable loop resistance 0.1 Ω the peak is 6.1–6.7 V. Compliant USB-C sources (VBUS on only after Rd is seen) and A-to-C cables (≥ 0.3 Ω) stay ≤ 5.3 V. | U12 overstressed on stiff, always-on 5 V supplies. | **Done 7 Oct.** At USB-C's 5.5 V maximum the old damper let U12's VIN reach 7.1 V and +5V_USB 7.4 V (`verify/power/damper.py`), so both remedies: U12 is now the TPS62162 (20 V absolute maximum), and the damper 0.68 Ω + 22 µF holds +5V_USB to ≤ 6.78 V (U14: 7 V) and U12's input to ≤ 6.50 V in every case simulated. Scope VBUS at bring-up. | rev-3 (AUDIT §7.3 item 5; the damper of §9 reduced it) |
 | 3 | **MAJOR** (integration) | No harness cable is specified. J4's pins run 1→6 down the left edge and J3's 6→1 down the right, so between two boards a cable laid straight across joins pin 1 to pin 6. | +5V_BUS lands on SYNC_N and GND on SYNC_P; the BUS pair is swapped; the next board gets no power; an end board's R12 dissipates 208 mW against 0.1 W. | **Done 7 Oct.** README.md and `fab/ORDER-NOTES.txt` specify it: GHR-06V-S housings wired pin n ↔ pin n (the wires cross between adjacent boards), twisted pairs on 3/4 and 5/6. A `1` marks pin 1 of J3 and J4. | rev-3 |
-| 4 | MINOR | QSPI_IOVDD (pin 54) supplies the internal flash but has no capacitor of its own. Pin 54 is not tied to pin 53 (C18); the nearest 100 nF is C33, 3.8 mm away along 0.15 mm track. The datasheet asks for its "increased high-frequency currents" to be accounted for. | Supply noise on the stacked flash at high QSPI clock. | **Done 7 Oct**, with finding 1: pins 53 and 54 tied in the ring, C18 @C18@. | rev-3 |
+| 4 | MINOR | QSPI_IOVDD (pin 54) supplies the internal flash but has no capacitor of its own. Pin 54 is not tied to pin 53 (C18); the nearest 100 nF is C33, 3.8 mm away along 0.15 mm track. The datasheet asks for its "increased high-frequency currents" to be accounted for. | Supply noise on the stacked flash at high QSPI clock. | **Done 7 Oct**, with finding 1: pins 53 and 54 tied in the ring, C18 1.3 mm of track from pin 54 with its own ground via. | rev-3 |
 | 5 | MINOR | No second 4.7 µF on VCORE at DVDD pin 23, which §6.3.8.1 recommends "for best performance". Pin 23 has only C25 (100 nF), 13 mm of VCORE track from C19. | Larger VCORE droop at pin 23 on load steps. | 4.7 µF at pin 23, away from LX / COUT. | rev-3 |
 | 6 | MINOR | D2's reverse leakage floats +5V_USB on a board powered only from the harness. PMEG2005AEA leaks 15 µA typ / 40 µA max at 10 V; the only DC load on the node is R34 plus U13's internal pull-down, about 961 kΩ. A few µA holds the node near 2.9 V. | It back-drives an unpowered host's VBUS. A compliant USB-C source waits for VBUS below vSafe0V before turning VBUS on, so a harness-powered board plugged into USB for BOOTSEL may never enumerate. | A ~10 kΩ bleeder from +5V_USB to GND (0.5 mA at 5 V). | rev-3 |
 | 7 | MINOR | BUS_DE (U10's DE and ~RE, tied) has no external pull-down. Undriven, the SN65HVD75's internal 3 MΩ / 1 MΩ put it at 0.83 V, between VIL and VIH. R37 on SYNC_DE is 10 kΩ, above E9's 8.2 kΩ. Both are safe at reset, when the pad pull-down holds them low. | A board whose firmware leaves GPIO10 / GPIO13 as inputs can enable its driver and hold the whole harness. | 4.7 kΩ from BUS_DE to GND and R37 → 4.7 kΩ (the R29 / R30 reel); drive both low on slaves. | rev-3 |
-| 8 | MINOR | USB_ILIM (TPS2553 pin 5 to R27 / R28) is 12.8 mm with 4 vias; R27 / R28 are 3.4 mm from the pin. The datasheet §9.5.1 asks for it "as short as possible". The first rev-4 had 9.7 mm with no via. | Noise pick-up on the current-limit setting. | Pre-route it directly on F.Cu. **Partly done 7 Oct:** the re-route's rip-up loop found no way round the RS-485 pairs, so it is now pre-routed before them, @ILIM@ (was 4 vias). A direct F.Cu run needs R27 out of the pairs' lane. | the re-route |
+| 8 | MINOR | USB_ILIM (TPS2553 pin 5 to R27 / R28) is 12.8 mm with 4 vias; R27 / R28 are 3.4 mm from the pin. The datasheet §9.5.1 asks for it "as short as possible". The first rev-4 had 9.7 mm with no via. | Noise pick-up on the current-limit setting. | Pre-route it directly on F.Cu. **Partly done 7 Oct:** the re-route's rip-up loop found no way round the RS-485 pairs, so it is now pre-routed before them: 13.9 mm with 2 vias (was 4). A direct F.Cu run needs R27 out of the pairs' lane. | the re-route |
 | 9 | MINOR | QSPI_SS (BOOTSEL) runs 13.7 mm with 2 vias to R25 / SW1 on the flash's live chip-select. The design guide puts the resistor at the pin. | Load and emissions on the flash CS. | Move R25 next to pin 60. | rev-3 |
 | 10 | MINOR | J6 (SWDIO, SWCLK, GND, RUN) does not follow Raspberry Pi's 3-pin debug order (SC, GND, SD); no 100 Ω target resistors; no legend. | A Debug Probe needs individual leads. | **Reordered 7 Oct:** SWCLK, GND, SWDIO, RUN, with `SC GND SD RUN` in silk. The target resistors are still not fitted. | rev-3 |
 | 11 | MAJOR (firmware) | `usb_power_policy.h` builds as rev-3 unless `TAXELSCAN_BOARD_REV=4` is defined. A rev-4 build without it reads the CC status on GPIO27/29, which carry ADC_A / ADC_B here. An amplifier output at rest (~0.15 V) decodes as L/L, "3 A attached". | The harness is fed at the 632 mA limit from any port, including a 500 mA one. | **Done 7 Oct:** `#error` unless it is 3 or 4. | rev-4 |
 | 12 | MINOR (firmware / docs) | `firmware/rev3/PLAN.md` and the rev-1 `scan.h` still carry the rev-1 / rev-3 ADC map. rev-4 needs pins 27 / 29 = AINSEL 1 / 3 (round-robin mask 0x0A) with `adc_gpio_init` on 27 / 28 / 29. PLAN §7.1's "never call adc_gpio_init() on GPIO27 or 29" is backwards here. The SDK's default stdio UART0 (GPIO0 / 1) would drive USB_ILIM_HI and ROW_LATCH_MCU; PLAN's board header already leaves it out, so it must be used. Conversion errors (CS.ERR) are never checked. | Wrong channels, a pulled-down ADC input, a wrong current limit. | A rev-4 column in PLAN §3.1; the board header with no default UART; check CS.ERR. | rev-4 / rev-3 |
 | 13 | MINOR (docs) | The README said the internal ADC gives up "3×" in resolution. RP2350 Table 1685 gives ENOB 9.0 min / 9.5 typ: 1.6–2.3 LSB rms, 8.1–8.6 noise-free bits per conversion. Against rev-3's estimated 11.9 that is 10–14× more noise per conversion before oversampling. The same converter is on rev-1, the board that has shipped. | Expectations. | Corrected in README.md today. | rev-4 |
 | 14 | MINOR (docs) | The 20 Mbaud figure. The RP2350 UART tops out at UARTCLK / 16 = 9.375 Mbaud; 20 Mbit/s is the SN65HVD75's own maximum; the firmware plan (D5) runs a PIO UART at 12.5 Mbaud. | — | Corrected in ROUTING_STATUS.md and pairs_rev4.py today; the rev-3 README's bandwidth table (8 full maps at 80 fps = 1.39 MB/s) does not fit 12.5 Mbaud and needs redoing. | rev-3 |
+| 15 | MINOR (layout) | *8 Oct:* U13's VDD (pin 12) lost its F.Cu tie to its bypass C40 in the re-route: the plane-tie redraw tied C40 to C13, and USB_CC1 now runs where the tie was. Both reach the +3.3 V plane through vias; the nearest capacitor along F.Cu is C13, 4.1 mm away (was C40, 1.5 mm). | Little: the TUSB320 draws tens of µA. | Lay the C40–U13.12 tie before the TUSB320's nets in `preroute_rev4.py` and re-plan USB_CC1 / CC2 round it; with the tie in, no order of the four found a way. | the re-route |
+| 16 | MINOR (layout) | *8 Oct:* the harness pass-through J4.1 → J3.1 is 134 mΩ (was 101). Freerouting took +5V_BUS over the top of the board, 111 mm against 85; it is widened to 0.6 mm where it fits. | 94 mV per board at 0.7 A instead of 71. The far boards' bucks see a lower input; they run to 100 % duty, so 3.3 V holds. | Pre-route +5V_BUS straight across at 0.6 mm. | the re-route |
+| 17 | MINOR (DFM) | *8 Oct:* one +5V_USB via, at (137.69, 129.81), is 0.41 mm from J5's locating-peg hole; filled, capped vias are asked to keep 0.45 mm. | The fab may query it. | Move the via 0.05 mm; its tracks must be redrawn to stay octilinear. | the re-route |
 
 ## Microcontroller (U9, RP2354A)
 
@@ -234,61 +248,79 @@ the pieces that do exist need three corrections before they meet this board.
 
 ## Layout, measured on the board
 
-- **Decoupling** (`verify/layout/decap.py`, against the first re-route and the first
-  rev-4 with the same placement).
-  - Every RP2354A supply pin except QSPI_IOVDD (finding 4) reaches its own 0201 on F.Cu
-    without a via:
+*8 Oct:* re-measured on the re-routed board; the 5 October value follows in
+brackets where it changed.
+
+- **Decoupling** (`verify/layout/decap.py`).
+  - Every RP2354A supply pin reaches a capacitor on F.Cu without a via:
     - IOVDD 1.00–1.45 mm
     - DVDD 1.15 / 1.48 / 2.70 mm
-    - VREG_VIN 1.23 mm
-    - VREG_AVDD 1.12 mm
-    - ADC_AVDD 2.62 mm
-    - USB_OTP_VDD 1.23 mm
-  - Every other IC's supply pin reaches its 100 nF on F.Cu at 0.9–3.9 mm. Every pin is
-    the same or better than on the first re-route.
-  - Two paths go through vias:
-    - VREG_FB to C19 (6.2 mm, 2 vias; a sense line, as on both earlier boards);
-    - D5's VBUS pin to C38 (3.3 mm, 2 vias; forced by D5.5's via under the part).
+    - VREG_VIN 1.00 mm, to CIN (C44) itself [1.23 mm, to C17's 100 nF]
+    - VREG_AVDD 2.53 mm, to CFILT (C43) where the minimal design has it [1.12 mm, to C16]
+    - ADC_AVDD 2.70 mm [2.62]
+    - USB_OTP_VDD 3.21 mm and QSPI_IOVDD 1.31 mm, both to C18 [1.23 mm, and
+      none for QSPI_IOVDD: finding 4]
+  - Every other IC's supply pin reaches its 100 nF on F.Cu at 0.97–3.90 mm,
+    with one exception. The TUSB320's VDD (U13.12) has lost its F.Cu tie to its
+    own C40 [1.54 mm]. The re-route's plane-tie redraw tied C40 to C13
+    instead, and USB_CC1 now runs where the tie was. U13.12 reaches the
+    +3.3 V plane through a via 0.4 mm from the pin, and C40 reaches it beside
+    C13, so the TUSB320, which draws tens of µA, is bypassed through the plane;
+    the nearest capacitor along F.Cu is C13, 4.1 mm away. The TPS62162's VIN
+    pins reach C27 at 1.03 / 1.53 mm.
+  - One path goes through vias: D5's VBUS pin to C38 (3.3 mm, 2 vias; forced by
+    D5.5's via under the part). VREG_FB now reaches C19 on F.Cu, 2.45 mm [6.2 mm,
+    2 vias].
+- **The regulator loop** (`verify/layout/vreg_loop.py`, new): pin 48 → L1 →
+  COUT → GND → pin 47 along F.Cu encloses 2.60 mm², against 2.28 mm² in Raspberry
+  Pi's minimal design measured the same way [about 20 mm², closing through the
+  planes].
 - **Power paths** (`verify/layout/powerpath.py`; DC, tracks and vias):
 
-  | path | first rev-4 | first re-route | now |
+  | path | first rev-4 | `7ca63a4` (5 Oct) | now |
   |---|---|---|---|
-  | +5V_BUS J4.1 → J3.1 (harness pass-through) | 119 mΩ | 115 | **101** |
-  | +5V_USB J5 VBUS A9 / B9 → U14 | 4.5 / 17.5 | 13.5 / 22.6 | 13.7 / 22.7 |
-  | +5V D1 / D2 → U12 VIN | 5.5 / 121 | 5.3 / 110 | 5.3 / 141 |
-  | VCORE L1 → DVDD 6 / 39 | 66 / 86 | 19 / 39 | 19 / 39 |
+  | +5V_BUS J4.1 → J3.1 (harness pass-through) | 119 mΩ | 101 | **134** |
+  | +5V_USB J5 VBUS A9 / B9 → U14 | 4.5 / 17.5 | 13.7 / 22.7 | 15.3 / 20.8 |
+  | +5V D1 / D2 → U12 VIN | 5.5 / 121 | 5.3 / 141 | 3.3 / 91 |
+  | VCORE L1 → DVDD 6 / 39 | 66 / 86 | 19 / 39 | 22 / 31 |
 
-  - Load-carrying copper is ≥ 0.30 mm on outer layers, about 1 A for a 10 °C rise.
-    The one 0.15 mm +5V_USB segment is D5.5's tie, which carries no DC.
-  - At the harness's 0.7 A the pass-through drops 71 mV per board.
+  - Load-carrying copper is ≥ 0.30 mm on outer layers, about 1 A for a 10 °C rise,
+    and the 5 V rails are widened to 0.5–0.6 mm where they fit. The one 0.15 mm
+    +5V_USB segment is D5.5's tie, which carries no DC.
+  - At the harness's 0.7 A the pass-through drops 94 mV per board [71]: the
+    re-route took +5V_BUS over the top of the board (111 mm against 85).
+    Pre-routing it straight across at 0.6 mm would bring it back.
 - **Noise neighbours** (`verify/layout/aggr.py`, same-layer copper within 0.30 mm; the
   inner layers carry only the planes).
-  - The sense nodes have only their own gain network beside them, plus 1.3 mm of MUX_S2
-    at 0.20 mm by SENSE_B (it switches only between samples).
-  - SW_NODE has nothing within 0.30 mm.
-  - VREG_LX passes 0.8 mm of USB_D_P at 0.17 mm.
-  - XIN runs beside XOUT_MCU for 5.3 mm at 0.12 mm, as on rev-3.
+  - The sense nodes have only the analog chain's own nets beside them: GAIN_A by
+    SENSE_A (0.6 mm at 0.19 mm) and AMP_A by SENSE_B (1.5 mm at 0.155 mm) [1.3 mm
+    of MUX_S2 at 0.20 mm by SENSE_B].
+  - Neither switching node, VREG_LX nor SW_NODE, runs within 0.30 mm of a
+    sensitive net [VREG_LX passed 0.8 mm of USB_D_P at 0.17 mm].
+  - XIN runs beside XOUT_MCU for 4.5 mm at 0.12 mm, as on rev-3 [5.3 mm].
 - **Reference planes** (`verify/layout/refplane.py`, share of each track over solid
   plane).
-  - Over In1 GND: SENSE / GAIN / ADC / RAIL_MON / XIN / XOUT 95–100 %; the RS-485 pairs
-    94–96 % on F.Cu. The gaps are via antipads.
-  - VREG_LX is 6 %, by design (the cut-out).
+  - Over In1 GND: SENSE / GAIN / ADC / RAIL_MON / XOUT 96–100 %, XIN 95 %,
+    XOUT_MCU 93 %; the RS-485 pairs 93–96 % on F.Cu. The gaps are via antipads.
+  - VREG_LX is 0 %, by design: the cut-out now covers all of it [6 %].
 - **Impedance** (JLC04161H-7628, 0.21 mm prepreg, εr 4.4, closed-form).
   - 0.15 mm tracks are 76 Ω single-ended.
   - The pairs are 115 Ω differential at 0.30 mm pitch and 122 Ω at 0.35 mm.
-  - RS-485 wants ~120 Ω. USB's 90 Ω matters little over 24 mm at 12 Mbit/s.
+  - RS-485 wants ~120 Ω. USB's 90 Ω matters little over 31 mm at 12 Mbit/s.
 - **Manufacture** (`../rev3/audit-tools/dfm_measure.py`, `dfm_jlcpcb.py` on this board).
   - Gaps and holes:
     - narrowest gap 0.100 mm (inside the escape areas); tracks ≥ 0.10 mm;
     - vias 0.30 / 0.50 and 0.30 / 0.60;
-    - via holes 0.25 mm apart on the same net, 0.35 mm on different nets;
+    - via holes 0.25 mm apart on the same net, 0.36 mm on different nets;
     - copper 0.27 mm from the outline centre line;
     - NPTH to copper 0.28 mm, PTH to copper 0.30 mm;
-    - no via within 0.45 mm of a component hole.
+    - one via within 0.45 mm of a component hole: a +5V_USB via 0.41 mm from
+      J5's locating-peg hole, inside JLCPCB's minimum but under the 0.45 mm
+      that filled, capped vias are asked to keep [none].
   - Mask webs are 0.18 mm within a part and 0.29 mm between parts.
   - All of this is inside JLCPCB's published limits.
-  - 51 vias sit wholly and 74 partly in SMD pads: order epoxy-filled, capped vias, as
-    `fab/ORDER-NOTES.txt` says.
+  - 46 vias sit wholly and 64 partly in SMD pads [51 / 74]: order epoxy-filled,
+    capped vias, as `fab/ORDER-NOTES.txt` says.
 
 ## To measure at bring-up
 
