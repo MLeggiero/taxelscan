@@ -57,23 +57,22 @@ them to freerouting as copper it must route around. In this order:
   - the crystal, XOUT_MCU, XIN and XOUT, on F.Cu without a via: U9's pins 22 /
     21 to R36, C20 and Y1, and R36 on to Y1 and C21. Laid after the debug
     lines below, which leave U9 beside them, they had no F.Cu way left
-  - the TUSB320's nets: USB_VBUS_DET, USB_CC2 and USB_CC1 from R34 and J5's
-    CC pins (U13's CC pins face west, J5's are south-east of them and CC2 has
-    to pass under the USB-C pair), then its status outputs USB_CC_OUT2 and
-    USB_CC_OUT1 to U9 and R33 / R32. Left to freerouting, each pair ripped the
-    other round after round in the rip-up loop (7 October). In that order: CC1
-    or CC2 first, or OUT1 before OUT2, leaves another no way
+  - the corner south-east of U9, which freerouting and the rip-up loop could
+    not finish (7 October): ADDR0-2 (U9's pins 32-34 to the address jumpers)
+    and USB_CC_OUT1 (pin 29 to R32 and the TUSB320) drawn (SOUTH_EAST, after
+    the board of 7ca63a4, whose parts there have not moved); then the TUSB320's
+    other nets by rr3 - USB_CC_OUT2, USB_VBUS_DET, USB_CC2, USB_CC1, in that
+    order (CC2 passes under the USB-C pair; with CC1 or CC2 first, one of the
+    others has no way)
   - USB_ILIM, U14's current-limit pin to R28 and R27: the pairs run between
     the two resistors, and once freerouting has filled the board neither it
     nor the rip-up loop finds a way round (7 October: no path); laid here, on
     the nearly empty board, it crosses the lane on two vias (the board before
     took four)
-  - SWCLK, SWDIO and RUN, U9's pins 24 / 25 / 26 to J6 and R20, then ADDR0-2,
-    pins 32-34 to the address jumpers: with J6 in Raspberry Pi's debug order
-    the corner south of U9 was left to the rip-up loop, which churned there
-    round after round (7 October). In that order (with RUN or SWDIO first,
-    past the crystal, one of the others had no way), across the RS-485 lane
-    on one or two vias each, the address lines on two to four
+  - SWCLK, SWDIO and RUN, U9's pins 24 / 25 / 26 to J6 and R20: with J6 in
+    Raspberry Pi's debug order the corner south of U9 was left to the rip-up
+    loop, which churned there round after round (7 October). In that order
+    (with RUN or SWDIO first, past the crystal, one of the others had no way)
 
 Every net named in FIXED must end up in one piece and pass the exact check, or
 this stops.
@@ -95,7 +94,8 @@ import fr_finish
 
 FIXED = (list(pairs_rev4.DRAWING) + list(fr_finish.CORNER) +
          ["USB_D_P", "USB_D_N", "VREG_LX", "SW_NODE", "VCORE", "VREG_AVDD", "USBC_D_N", "USBC_D_P", "USB_ILIM",
-          "XOUT_MCU", "XIN", "XOUT", "USB_VBUS_DET", "USB_CC2", "USB_CC1", "USB_CC_OUT2", "USB_CC_OUT1", "SWCLK", "SWDIO", "RUN", "ADDR0", "ADDR1", "ADDR2"])
+          "XOUT_MCU", "XIN", "XOUT", "ADDR0", "ADDR1", "ADDR2", "USB_CC_OUT1", "USB_CC_OUT2", "USB_VBUS_DET",
+          "USB_CC2", "USB_CC1", "SWCLK", "SWDIO", "RUN"])
 USBC_RUN = box(127.0, 110.9, 139.4, 125.0)    # D5 to R23 / R24: F.Cu costed, the pair runs on B.Cu
 D5_VBUS_VIA = (137.40, 126.00)                # D5.5's via: under D5's body, between its D+ and D- rows
 J5_SOUTH = (132.6, 128.0, 138.6, 131.0)       # J5's pin row and the receptacle south of it
@@ -310,17 +310,60 @@ def crystal(m, log):
     return True
 
 
+# The corner south-east of U9, drawn: its parts have not moved since the board of
+# 7ca63a4, and these follow that board's routing (freerouting's), straightened.
+# ADDR0 and ADDR1 drop to B.Cu in U9's pin ring and ADDR2 just east of pin 34, and
+# the three run down to the address jumpers side by side on B.Cu; USB_CC_OUT1
+# drops under pin 29 and crosses under the east pin row to R32 and the TUSB320.
+# Searched one net at a time instead, in any order, one of these, the TUSB320's
+# other nets or the debug lines was left with no way (7 October).
+SOUTH_EAST = {
+    "ADDR0": ([(0.15, [(129.956, 123.051), (129.406, 123.051), (129.156, 123.301)], "F"),
+               (0.15, [(129.156, 123.301), (127.821, 124.636), (127.821, 128.186), (122.706, 133.301)], "B"),
+               (0.15, [(122.706, 133.301), (121.406, 134.601), (121.406, 135.701)], "F")],
+              [(129.156, 123.301), (122.706, 133.301)]),
+    "ADDR1": ([(0.15, [(129.956, 122.651), (129.266, 122.651), (129.216, 122.601)], "F"),
+               (0.10, [(129.216, 122.601), (129.616, 123.001), (129.616, 123.526), (129.391, 123.751),
+                       (129.241, 123.751), (128.096, 124.896), (128.096, 129.920)], "B"),
+               (0.15, [(128.096, 129.920), (124.716, 133.300)], "B"),
+               (0.15, [(124.716, 133.300), (124.716, 135.675)], "F")],
+              [(129.216, 122.601), (124.716, 133.300)]),
+    "ADDR2": ([(0.15, [(129.956, 122.251), (130.306, 122.251), (130.756, 122.701), (130.756, 123.151)], "F"),
+               (0.15, [(130.756, 123.151), (130.756, 125.951), (130.206, 126.501), (130.206, 131.101),
+                       (128.006, 133.301)], "B"),
+               (0.15, [(128.006, 133.301), (128.006, 135.701)], "F")],
+              [(130.756, 123.151), (128.006, 133.301)]),
+    "USB_CC_OUT1": ([(0.15, [(128.906, 124.101), (128.906, 124.134), (128.806, 124.234), (128.806, 124.840)], "F"),
+                     (0.15, [(128.806, 124.840), (129.831, 123.815)], "B"),
+                     (0.10, [(129.831, 123.815), (129.831, 123.415), (130.556, 122.690), (132.106, 122.690)], "B"),
+                     (0.15, [(132.106, 122.690), (134.106, 124.690), (134.106, 125.615)], "B"),
+                     (0.15, [(134.106, 125.615), (133.681, 126.040), (133.250, 126.040)], "F"),
+                     (0.15, [(134.106, 125.615), (134.456, 125.265), (134.876, 125.265)], "F")],
+                    [(128.806, 124.840), (134.106, 125.615)]),
+}
+
+
+def south_east(m, log):
+    """ADDR0-2 and USB_CC_OUT1, drawn (SOUTH_EAST)."""
+    for net, (polylines, vias) in SOUTH_EAST.items():
+        if not lay(m, log, net, polylines, vias, (0.5, 0.3)) or len(rr2.comps(m, net)) != 1:
+            log("%s: the drawing does not fit" % net)
+            return False
+        its = st.net_copper(m, net)
+        log("%s drawn: %.1f mm, %d via" % (net, st.jag_of(its)[0], sum(1 for it in its if it["kind"] == "via")))
+    return True
+
+
 def usb_cc(m, log):
-    """The TUSB320's (U13's) nets. USB_VBUS_DET, USB_CC2 and USB_CC1, from R34 and J5's CC
-    pins: U13's CC pins face west, J5's are south-east of them, and CC2's has the USB-C
-    pair between - it passes under the pair south of D5. Then its status outputs
-    USB_CC_OUT2 and USB_CC_OUT1, pins 8 / 7 to U9's pins 31 / 29 and the pull-ups R33 /
-    R32, through the gap east of U9 the address lines also take. Left to freerouting,
-    each pair ripped the other round after round in the rip-up loop (7 October). In
-    this order; CC1 or CC2 first, or OUT1 before OUT2, leaves another no way."""
-    for net in ("USB_VBUS_DET", "USB_CC2", "USB_CC1", "USB_CC_OUT2", "USB_CC_OUT1"):
+    """The TUSB320's (U13's) other nets: USB_CC_OUT2, pin 8 to U9's pin 31 and R33; then
+    USB_VBUS_DET, USB_CC2 and USB_CC1 from R34 and J5's CC pins. U13's CC pins face west,
+    J5's are south-east of them, and CC2's has the USB-C pair between - it passes under
+    the pair south of D5. Left to freerouting, CC1 and CC2, and then CC_OUT1 and
+    CC_OUT2, ripped each other round after round in the rip-up loop (7 October). In this
+    order; with CC1 or CC2 first, one of the others has no way."""
+    for net in ("USB_CC_OUT2", "USB_VBUS_DET", "USB_CC2", "USB_CC1"):
         for w in (0.15, 0.1):
-            ok, _ = rr3.connect(m, net, w, ("F", "B"), margin=2.0)
+            ok, _ = rr3.connect(m, net, w, ("F", "B"), margin=3.0)
             its = st.net_copper(m, net)
             if ok:
                 log("%s at %.2f mm: %.1f mm, %d via" % (net, w, st.jag_of(its)[0],
@@ -335,10 +378,10 @@ def usb_cc(m, log):
 
 
 def debug_lines(m, log):
-    """SWCLK, SWDIO and RUN: U9's pins 24 / 25 / 26 to J6 (and RUN's pull-up R20); then
-    ADDR0-2, pins 32-34 to the address jumpers - the long nets of the corner south of U9.
-    SWCLK first: with RUN or SWDIO first, past the crystal, one of the others had no way."""
-    for net in ("SWCLK", "SWDIO", "RUN", "ADDR0", "ADDR1", "ADDR2"):
+    """SWCLK, SWDIO and RUN: U9's pins 24 / 25 / 26 to J6 (and RUN's pull-up R20), the long
+    nets of the corner south of U9. SWCLK first: with RUN or SWDIO first, past the
+    crystal, one of the others had no way."""
+    for net in ("SWCLK", "SWDIO", "RUN"):
         ok, _ = rr3.connect(m, net, 0.15, ("F", "B"), margin=3.0)
         its = st.net_copper(m, net)
         if not ok:
@@ -407,12 +450,14 @@ def main(src, dst):
         sys.exit("preroute: the pair drawing does not verify")
     if not crystal(m, log):
         sys.exit("preroute: the crystal could not be laid on F.Cu")
+    if not south_east(m, log):
+        sys.exit("preroute: ADDR0-2 / USB_CC_OUT1 could not be drawn")
     if not usb_cc(m, log):
         sys.exit("preroute: the TUSB320's nets could not be routed")
     if not usb_ilim(m, log):
         sys.exit("preroute: USB_ILIM could not be routed")
     if not debug_lines(m, log):
-        sys.exit("preroute: SWCLK / SWDIO / RUN / ADDR0-2 could not be routed")
+        sys.exit("preroute: SWCLK / SWDIO / RUN could not be routed")
     bad = [n for n in FIXED if len(rr2.comps(m, n)) != 1]
     nbad = 0
     for net in FIXED:
