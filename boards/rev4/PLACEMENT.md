@@ -206,12 +206,15 @@ J4 and `SC GND SD RUN` above J6.
 
 ## What did not move
 
-Everything else: 97 of the 104 parts on a middle board are at rev-3's exact
-position and rotation. One fiducial, FID2, moved 0.11 mm to keep its 0.6 mm
-clearance from the re-routed `AMP_A`; ROUTING_STATUS.md has the detail.
+Everything else. Before the 7 October fixes, 97 of the 104 parts on a middle
+board were at rev-3's exact position and rotation; now 78 of the 102 are. The
+24 that moved are the 7 above and the 17 of the regulator and buck corners and
+R30 / R31. One fiducial, FID2, moved 0.11 mm to keep its 0.6 mm clearance from
+the re-routed `AMP_A`; ROUTING_STATUS.md has the detail.
 
 The board was afterwards re-routed from scratch for straight 0 / 45 / 90-degree
-routing (ROUTING_STATUS.md). That kept this placement exactly - every footprint
-and pad at the same position and rotation, to the nanometre - and changed one
-thing that touches a part: R27.2's ground via now sits in its pad, to let the
-re-laid `BUS_N` pass over R27.
+routing (ROUTING_STATUS.md). The first two re-routes kept this placement
+exactly - every footprint and pad at the same position and rotation, to the
+nanometre - and changed one thing that touches a part: R27.2's ground via now
+sits in its pad, to let the re-laid `BUS_N` pass over R27. The third, after the
+7 October fixes, keeps theirs.
