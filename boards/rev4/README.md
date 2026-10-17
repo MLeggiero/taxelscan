@@ -18,6 +18,7 @@ positions, on rev-3's 60.3 × 35.9 mm outline.
 | `VERIFICATION.md` | the functional check: every IC against its datasheet, the analog chain and hot plug simulated, the layout measured, what to fix before ordering and what to measure at bring-up (scripts in `verify/`) |
 | `tools/` | the board-change, placement and routing scripts for this revision, and rev-3's router ported to run anywhere (see `tools/README.md`) |
 | `pcb_top.png`, `pcb_rev3_vs_rev4.png`, `pcb_routing_before_after.png` | renders: the board, the ADC corner against rev-3, the routing before and after the re-route |
+| `../../libraries/TaxelScan.3dshapes/` | U9's 3D model. KiCad ships none for the QFN-60, so `make_qfn60.py` draws it from the package drawing in the RP2350 datasheet (Fig. 147): 60 leads, one on each pad. J5 shows KiCad's GCT USB4105 body, whose pads match the HRO part's to 0.05 mm |
 
 The design record for everything this revision did not touch — the front-end
 reasoning, the USB power design, the audits, the routing history — is in

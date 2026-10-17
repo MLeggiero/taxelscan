@@ -4,7 +4,8 @@ Each directory is a self-contained KiCad project. Symbol and footprint
 libraries that more than one board uses live in `../libraries/` and are
 referenced from each board's `fp-lib-table` / `sym-lib-table` as
 `${KIPRJMOD}/../../libraries/...`, so there is one copy of FlexiTac rather than
-one per board.
+one per board. 3D models that KiCad does not ship are in
+`../libraries/TaxelScan.3dshapes/`, referenced the same way.
 
 | Board | What it is | State |
 |---|---|---|

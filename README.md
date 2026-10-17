@@ -142,7 +142,7 @@ input here.
 boards/rev4/          the board: KiCad project, netlist generator, fab/ package, verification
 firmware/rev3/        firmware specification
 firmware/rev3_power/  USB power policy, written and unit-tested
-libraries/            shared symbols and footprints
+libraries/            shared symbols, footprints and 3D models
 boards/rev3/, boards/rev1/, firmware/taxelscan/, boards/v2-*/   earlier boards and their firmware
 ```
 

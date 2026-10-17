@@ -5650,7 +5650,7 @@
 			(uuid "64228aec-5dfe-403a-892c-48be31ad90bc")
 		)
 		(embedded_fonts no)
-		(model "${KICAD10_3DMODEL_DIR}/Package_DFN_QFN.3dshapes/QFN-56-1EP_7x7mm_P0.4mm_EP3.2x3.2mm.step"
+		(model "${KIPRJMOD}/../../libraries/TaxelScan.3dshapes/QFN-60-1EP_7x7mm_P0.4mm_EP3.4x3.4mm.step"
 			(offset
 				(xyz 0 0 0)
 			)
