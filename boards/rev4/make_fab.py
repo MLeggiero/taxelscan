@@ -35,7 +35,7 @@ and want no part placed at all; they are excluded rather than counted missing.
 **Two assembly sets.** R11/R12 (bus termination) belong only on the two boards
 at the ends of a harness: rev4-bom.csv / rev4-cpl.csv leave them out, and
 rev4-bom-end.csv / rev4-cpl-end.csv put them in. ORDER-NOTES.txt says which
-JLCPCB options the board needs (epoxy-filled and capped vias, Standard PCBA)
+JLCPCB options the board needs (Standard PCBA; the vias are tented)
 and what to check in the placement preview.
 """
 import csv
@@ -202,17 +202,28 @@ def main():
             "Vias are 0.3 mm drill / 0.5 or 0.6 mm pad: a 0.10 mm annular ring,",
             "inside JLCPCB's via rule (pad >= hole + 0.10 mm) at no extra cost.",
             "",
-            "107 via holes lie wholly (11) or partly (96) inside SMD pad",
-            "openings, including all 7 ground vias in U9's exposed pad, which",
-            "sit in the middle of its paste windows. Tenting cannot cover them.",
-            "ORDER THE VIAS EPOXY FILLED AND COPPER CAPPED (JLCPCB 'Via Covering:",
-            "Epoxy Filled & Capped'), or solder paste drains into the holes: dry",
-            "joints under the QFN and tombstoned 0201/0402s (26 of them have a via",
-            "hole on only one pad). Counted by tools/via_in_pad.py, which gives",
-            "rev-3 150 / 18 / 132 / 45 on the same definition, the first rev-4",
-            "136 / 17 / 119 / 37, and the board before the 7 October fixes",
-            "120 / 11 / 109 / 35. The re-routes put R27.2's ground via in its pad:",
-            "BUS_N passes where it was.",
+            "The vias are tented: solder mask covers each one on both sides, except",
+            "where it sits in a pad's opening. No via hole is in an SMD pad's",
+            "solder-mask opening, or within 0.10 mm of one (JLCPCB's minimum mask",
+            "bridge), except",
+            "  - the 9 ground vias in the exposed pads of U9 (7) and U12 (2), where the",
+            "    RP2350 and TPS62162 layouts put them, under the paste windows;",
+            "  - U5 pin 15's ground via (that mux's enable, tied low): no place clear",
+            "    of the pads was found for it, even with the column lines round it",
+            "    routed again, so its hole still overlaps the toe of the pad.",
+            "tools/via_in_pad.py counts them, and the board rule 'via hole clear of",
+            "SMD pads' holds the rest in KiCad's DRC. Until the 21 October design",
+            "review 98 vias besides the exposed pads' had their holes in pads, 32 of",
+            "them on one pad of a two-pad passive (the tombstoning case), and the",
+            "board had to be ordered with epoxy-filled, capped vias (../REVIEW.md).",
+            "",
+            "Epoxy filled and capped vias are now optional. They keep paste from",
+            "draining into the exposed-pad vias, which otherwise leave some voiding",
+            "under U9 and U12, as any open thermal via does, and into U5.15's.",
+            "Without them, check U5 pin 15's joint and the exposed pads at inspection.",
+            "",
+            "Copper is at least 0.40 mm from the outline everywhere: JLCPCB's figure",
+            "for a V-scored edge (a routed edge needs 0.2 mm).",
             "")))
     print("  %-22s fab/STACKUP-NOTES.txt" % "fab notes")
 
@@ -225,7 +236,7 @@ def main():
             "PCB",
             "  Layers 4, thickness 1.6 mm, stackup JLC04161H-7628 (inner 0.5 oz)",
             "  Outer copper 1 oz; via 0.3 mm / 0.45 mm or larger (no surcharge)",
-            "  Via Covering: Epoxy Filled & Capped  <- required, see STACKUP-NOTES",
+            "  Via Covering: Tented (Epoxy Filled & Capped optional: see STACKUP-NOTES)",
             "  Min trace/space 0.10 mm (above the 3.5 mil surcharge band)",
             "",
             "Assembly",

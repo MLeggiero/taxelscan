@@ -3,7 +3,7 @@ JLCPCB order settings for rev-4 (rev-3's, checked 17 September 2026, less U8/C8/
 PCB
   Layers 4, thickness 1.6 mm, stackup JLC04161H-7628 (inner 0.5 oz)
   Outer copper 1 oz; via 0.3 mm / 0.45 mm or larger (no surcharge)
-  Via Covering: Epoxy Filled & Capped  <- required, see STACKUP-NOTES
+  Via Covering: Tented (Epoxy Filled & Capped optional: see STACKUP-NOTES)
   Min trace/space 0.10 mm (above the 3.5 mil surcharge band)
 
 Assembly
