@@ -90,8 +90,8 @@ Plan-view renders of `boards/rev4/rev4.kicad_pcb`, 60.3 × 35.9 mm.
 | | |
 |---|---|
 | PCB | JLCPCB, 4 layers, JLC04161H-7628, 1.6 mm, 1 oz outer |
-| Rules | 0.10 / 0.10 mm trace/space in the fine-pitch areas, 0.15 / 0.15 elsewhere; 300 vias, 0.30 mm drill / 0.50 or 0.60 mm pad |
-| Vias | epoxy-filled and capped (required: vias sit in pads) |
+| Rules | 0.10 / 0.10 mm trace/space in the fine-pitch areas, 0.15 / 0.15 elsewhere (four slow nets keep 45 mm at 0.10 mm); copper 0.40 mm from the edge; 300 vias, 0.30 mm drill / 0.50 or 0.60 mm pad |
+| Vias | tented: no via hole in an SMD pad but the 9 in U9's and U12's exposed pads and one at U5, so epoxy filling and capping is optional ([design review](boards/rev4/REVIEW.md)) |
 | Assembly | Standard PCBA, top side, 0201 smallest; resistors thin film 0.1 %, 25 ppm/°C |
 | Files | `boards/rev4/fab/`: `rev4-gerbers.zip`; `rev4-bom.csv` + `rev4-cpl.csv` (102 parts); `-end` pair (104 parts, adds 2 × 120 Ω) |
 | Parts cost | about $15 per board for 10 boards at JLCPCB part prices (an estimate, not a quote); PCB and assembly fees extra |

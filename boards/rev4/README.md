@@ -15,9 +15,10 @@ positions, on rev-3's 60.3 × 35.9 mm outline.
 | `fab/` | the JLCPCB package from `make_fab.py`: gerbers, drills, `rev4-gerbers.zip`, middle-board and end-board BOM/CPL sets, drawings, order and stackup notes |
 | `PLACEMENT.md` | the placement analysis: what removing U8 freed, every move considered, which were made and why |
 | `ROUTING_STATUS.md` | the routed board: how it was re-routed for straight routing, DRC, parity, plane health, open items |
+| `REVIEW.md` | the 21 October design review: an experienced electrical engineer's six comments on the layout, each measured on the board, and what changed for the ones that hold |
 | `VERIFICATION.md` | the functional check: every IC against its datasheet, the analog chain and hot plug simulated, the layout measured, what to fix before ordering and what to measure at bring-up (scripts in `verify/`) |
 | `tools/` | the board-change, placement and routing scripts for this revision, and rev-3's router ported to run anywhere (see `tools/README.md`) |
-| `pcb_top.png`, `pcb_rev3_vs_rev4.png`, `pcb_routing_before_after.png` | renders: the board, the ADC corner against rev-3, the routing before and after the re-route |
+| `pcb_top.png`, `pcb_rev3_vs_rev4.png`, `pcb_routing_before_after.png`, `pcb_review_vias.png` | renders: the board, the ADC corner against rev-3, the routing before and after the re-route, the plane vias before and after the design review |
 | `../../libraries/TaxelScan.3dshapes/` | U9's 3D model. KiCad ships none for the QFN-60, so `make_qfn60.py` draws it from the package drawing in the RP2350 datasheet (Fig. 147): 60 leads, one on each pad. J5 shows KiCad's GCT USB4105 body, whose pads match the HRO part's to 0.05 mm |
 
 The design record for everything this revision did not touch — the front-end
@@ -238,17 +239,18 @@ Distinct part numbers: 47 → 46.
     tools/route_rev4.py            AMP_A/B, +5V, USB_CC_OUT1/2, the ILIM fixes, FID2; prune
     tools/fix_rev4.py              the verification fixes: regulator corner, TPS62162, J6, silk; R30 / R31
     tools/freeroute_rev4.py all    the re-route: strip, pre-route, freerouting, import, finish
+    tools/review_rev4.py           the design review's changes (REVIEW.md): edge, vias, widths, corners
     tools/finalize_rev4.py         install, then KiCad DRC with zones refilled + schematic parity
     ./make_fab.py                  fab/
 
-| Check (KiCad 10.0.6) | Result |
+| Check (KiCad 10.0.7) | Result |
 |---|---|
-| DRC, zones refilled | 0 unconnected, 0 copper errors; rev-3's same 5 silkscreen warnings |
+| DRC, zones refilled | 0 unconnected, 0 copper errors under the design review's rules (copper 0.40 mm from the edge, via holes 0.10 mm clear of SMD pads, 0.15 mm track outside the escape areas); rev-3's same 5 silkscreen warnings |
 | Schematic parity | every net's pads match; the only items are rev-3's net-name prefix and J5's two open SBU pins |
 | ERC | 0 errors |
-| Routing | 0.8 of 2291 mm (0.03 %) off 0 / 45 / 90 degrees, all of it plane ties (first rev-4: 67 %); nothing on In2; 164 signal vias; the USB-C data pair 2 / 2 vias, side by side |
-| +3.3 V plane (In2) | 1 piece, 1820 mm², all 32 vias (first rev-4: 2 pieces, 1740 mm², 33 of 34; rev-3: 7 pieces, 1665 mm², 27 of 35) |
-| GND plane (In1) | one piece, 1864 mm², all 104 vias |
+| Routing | 0.8 of 2306 mm (0.03 %) off 0 / 45 / 90 degrees, all of it plane ties (first rev-4: 67 %); nothing on In2; 169 signal vias; no via hole in an SMD pad but the exposed pads' 9 and U5 pin 15's; 8 bare right angles, none on the pairs; the USB-C data pair 2 / 2 vias, side by side |
+| +3.3 V plane (In2) | 1 piece, 1840 mm², all 31 vias (the 8 October board, filled the same way with KiCad 10.0.7: 1841 mm²; first rev-4: 2 pieces, 1740 mm², 33 of 34; rev-3: 7 pieces, 1665 mm², 27 of 35) |
+| GND plane (In1) | one piece, 1875 mm², all 100 vias (8 October, filled the same way: 1879 mm², 104 vias) |
 | Fab package | 69 BOM lines, every one with an LCSC number; 102 / 104 parts in the CPLs; both planes in the gerbers |
 | Firmware pin map | `firmware/rev3_power` native test passes for rev-3 and rev-4; a build without `TAXELSCAN_BOARD_REV` stops |
 

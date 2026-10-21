@@ -1,4 +1,4 @@
-# Routing status — rev-4, 8 October 2026
+# Routing status — rev-4, 21 October 2026
 
 `rev4.kicad_pcb` is **re-routed from scratch** for straight routing: every
 signal track runs at 0, 45 or 90 degrees. This is the third re-route. It
@@ -7,7 +7,10 @@ core regulator re-placed as Raspberry Pi's RP2350A minimal design, U12 changed
 to the TPS62162 in TI's layout, R18 / R19 removed, J6 re-pinned, and R30 / R31
 moved under U14's pins. `tools/fix_rev4.py` made those placement changes
 ([PLACEMENT.md](PLACEMENT.md)) and drew their GND / +3.3 V copper. Every other
-footprint is where it was.
+footprint is where it was. Since 21 October the board also carries a design
+review's changes, made on this routing rather than by routing it again (the
+next section); the rest of the file describes the 8 October re-route they
+edit.
 
 The pre-route now lays 30 nets before Freerouting runs, against 14: the
 regulator's own nets as the minimal design draws them, the buck's input loop,
@@ -26,10 +29,69 @@ them as a pair and tidied what the rip-up loop left behind.
 
 ![before and after](pcb_routing_before_after.png)
 
+## After the design review (21 October)
+
+[REVIEW.md](REVIEW.md) measured six comments from an experienced electrical
+engineer, and `tools/review_rev4.py` made the layout changes for the ones that
+hold, on this routing; nothing was routed again from scratch. In order:
+
+1. **Edge.** C39, R1, R17 and D3 moved in from the outline (PLACEMENT.md), and
+   the copper-to-edge rule went from 0.22 to 0.40 mm, JLCPCB's figure for a
+   V-scored edge (`lr.EDGE` with it, so a future re-route keeps to it). The
+   +5V run that went along the bottom edge on B.Cu, 0.35 mm from it, is now
+   1.15 mm in, and the vias that sat closer than 0.40 mm moved in.
+2. **Vias.** 97 of the 98 plane-tie vias whose holes met an SMD pad opening
+   went: 3 with the parts that moved in, 89 moved to where the hole is at
+   least 0.10 mm (JLCPCB's minimum mask bridge) from every opening, and 5
+   taken off, their pads tied on F.Cu to a neighbour's via. 12 of the 89 moved
+   only after the signal nets boxing them in were taken up and routed again
+   round them. A pad's own track to somewhere else (a capacitor's to its IC
+   pin) stays as it was. U5 pin 15's via stays in its pad. Every plane via
+   was then checked against KiCad's fill of its plane, and the one that had
+   moved into the thermal-relief gap round J5's shield pin moved again.
+3. **Widths.** The nets with 0.10 mm track away from the fine-pitch pins were
+   routed again at 0.15 mm end to end where that came out whole, with no more
+   vias and at most a third longer (`BUS_DI`, `ROW_DATA`, `SYNC_OUT`,
+   `BUS_DE`, `STATUS`, `USB_PWR_FAULT`); what was left was widened in place,
+   nudged up to 0.075 mm aside, or routed again run by run. `MUX_S0`,
+   `MUX_S2`, `MUX_S3` and `SYNC_DE` keep 45 mm at 0.10 mm outside the escape
+   areas.
+4. **Corners.** 20 bare right angles were cut to two 45-degree bends, all six
+   on the pairs among them. Eight remain, against 24 (REVIEW.md lists them).
+5. **Clean-up.** 40 track segments that lay wholly on another of their net
+   (a moved via's tie drawn over an old one) came off, and so did one segment
+   that KiCad's own connectivity calls dangling.
+
+Two new board rules hold the result in KiCad's DRC: "via hole clear of SMD
+pads" (the exposed pads and U5 pin 15 excepted) and "0.15 mm outside the
+escape areas" (the four nets above excepted).
+
+| | 8 October | after the review |
+|---|---|---|
+| via holes in SMD pad openings (`tools/via_in_pad.py`; the exposed pads' 9 aside) | 98; 32 two-pad passives with a hole at one pad | **1** (U5 pin 15); none |
+| vias | 300 (104 GND, 32 +3.3 V, 164 signal) | 300 (100 GND, 31 +3.3 V, 169 signal) |
+| signal copper at 0.10 mm / of it outside the escape areas | 231 / 144 mm | 94 / 61 mm |
+| bare 90° corners (pairs / other signals / power) | 6 / 14 / 4 | **0** / 7 / 1 |
+| signal copper on B.Cu (fast logic / pairs / rest) | 37 / 83 / 604 mm | 36 / 83 / 610 mm |
+| copper within 0.40 mm of the outline | 4 parts, 4 vias, 22 mm of track | none |
+| copper off the 0 / 45 / 90-degree grid | 0.8 of 2291 mm | 0.8 of 2306 mm |
+| segments shorter than 0.1 mm / track segments | 69 / 1418 | 104 / 1498 |
+| copper per layer | F 1397, In2 0, B 894 mm | F 1405, In2 0, B 901 mm |
+
+The five signal vias more are `USB_PWR_FAULT`'s four, routed again round a
+moved via (a fault flag, allowed a few), and one on `+5V_BUS` where C39 moved.
+Most of the new short segments are the legs of the new plane ties.
+`tools/via_in_pad.py` now leaves out the 0201 footprints' paste-only
+apertures, which it had counted as a second pad: on the 8 October board that
+makes 32 one-pad passives, not the 26 the "Before and after" table below
+gives; its columns use the old count.
+
 ## Verified
 
-Native KiCad **10.0.6** DRC with zones refilled and schematic parity against
-`rev4.kicad_sch`, run by `tools/finalize_rev4.py`:
+Native KiCad **10.0.7** DRC with zones refilled and schematic parity against
+`rev4.kicad_sch`, run by `tools/finalize_rev4.py` on the board after the design
+review, under its rules (copper 0.40 mm from the edge, via holes clear of SMD
+pads, 0.15 mm outside the escape areas):
 
     unconnected   0
     copper        0   (clearance, shorts, hole clearance, widths, dangling: all zero)
@@ -43,7 +105,10 @@ Native KiCad **10.0.6** DRC with zones refilled and schematic parity against
     ./check_faults.py     42 of 42 behave (41 injected faults + the clean baseline)
 
 17 parts moved and two went (PLACEMENT.md), so `fab/` was regenerated: the
-CPLs, BOMs and every gerber changed with them.
+CPLs, BOMs and every gerber changed with them. After the design review `fab/`
+was regenerated again: the four parts it moved change the CPLs, the copper and
+mask change the gerbers, and the BOMs stay as they were. The order notes now
+ask for tented vias.
 
 ## Before and after
 
@@ -205,8 +270,9 @@ a tangle of the crowded J4 end, so they are drawn again for this placement
   hops past it on B.Cu (BUS's swap).
 - **J3 end.** SYNC continues on B.Cu, which is nearly empty there. BUS stays
   on F.Cu under R28 / R27, and BUS_N climbs between them to J3.4. R27.2's
-  ground via stood in its way, so it moved into the pad; the board orders
-  epoxy-filled, capped vias anyway (`fab/STACKUP-NOTES.txt`).
+  ground via stood in its way, so it moved into the pad; the board ordered
+  epoxy-filled, capped vias anyway. The design review moved it out again
+  ([REVIEW.md](REVIEW.md)).
 
 | pair | first rev-4 | re-routed |
 |---|---|---|
@@ -250,7 +316,25 @@ only, over the unbroken ground plane, as before.
 The plane vias are fewer (104 GND, 32 +3.3 V): R18 / R19 went, and the
 regulator corner reaches its planes at the minimal design's points.
 
+*21 October:* after the design review, GND on In1 is one piece of 1875.5 mm²
+with all 100 GND vias, and +3.3 V on In2 one piece of 1840.4 mm² with all 31,
+filled with the project's rules as `finalize_rev4.py` fills them (the
+8 October board, filled the same way by KiCad 10.0.7, gives 1878.8 /
+1841.0 mm²). Four GND vias and one +3.3 V via went with the via moves; every
+pad they served is tied to a neighbour's via or was already on the plane
+through another.
+
 ## Open items
+
+From the design review (REVIEW.md):
+
+- **U5 pin 15's ground via is still in its pad**, at the toe: no place clear
+  of the pads was found with `MUX_S0`, `MUX_S2`, `COL_15` and the column lines
+  on B.Cu round it. It is the one via hole in an SMD pad besides the exposed
+  pads'.
+- **Four slow nets keep 0.10 mm runs** outside the escape areas, 45 mm in all
+  (`MUX_S0` 24.6, `MUX_S3` 8.3, `SYNC_DE` 5.9, `MUX_S2` 5.8).
+- **Eight bare right angles remain**, none on the pairs.
 
 From this re-route:
 
@@ -292,16 +376,20 @@ New to check at bring-up:
     python3 freeroute_rev4.py all ../../../tmp/fix/eco.kicad_pcb ../../../tmp/fr \
         --jar freerouting-2.4.1.jar --java /usr/lib/jvm/java-25-openjdk-amd64/bin/java
     python3 finalize_rev4.py ../../../tmp/fr/final.kicad_pcb
+    mkdir -p ../../../tmp/review
+    python3 review_rev4.py ../rev4.kicad_pcb ../../../tmp/review/r1.kicad_pcb
+    python3 finalize_rev4.py ../../../tmp/review/r1.kicad_pcb
     cd .. && python3 make_fab.py
 
-`fix_rev4.py` runs once, on the board before the fixes, after `gen_rev4.py` has
-written `rev4.net`. To re-route the installed board as it is, give
-`freeroute_rev4.py all` `../rev4.kicad_pcb`: the strip keeps its plane ties.
-Freerouting's optimiser runs on three threads, so a second run will not give
-the same tracks, only a board of the same kind (two runs of this pipeline both
-finished clean; this is the one whose op-amp outputs had fewer vias).
-`tools/README.md` has the setup: KiCad's Python, Java 25, and the Freerouting
-jar.
+The three lines before `make_fab.py` are the design review's changes
+(REVIEW.md), made on the re-routed board. `fix_rev4.py` runs once, on the board
+before the fixes, after `gen_rev4.py` has written `rev4.net`. To re-route the
+installed board as it is, give `freeroute_rev4.py all` `../rev4.kicad_pcb`: the
+strip keeps its plane ties. Freerouting's optimiser runs on three threads, so a
+second run will not give the same tracks, only a board of the same kind (two
+runs of this pipeline both finished clean; this is the one whose op-amp outputs
+had fewer vias). `tools/README.md` has the setup: KiCad's Python, Java 25, and
+the Freerouting jar.
 
 ## History: the first rev-4 routing
 

@@ -38,6 +38,29 @@ Re-checked on the re-routed board:
 | layout re-measured (below) | as before, except U13's VDD (its C40 now reaches it through the plane), the harness pass-through (134 mΩ, was 101) and one via 0.41 mm from J5's peg hole |
 | `fab/` against the board | regenerated: 300 via drills = 300 vias; 4 J5 shield slots, 4 J6 holes, 2 NPTH pegs; 102 / 104 parts in the CPLs; 69 BOM lines, all with LCSC numbers |
 
+## Since then: the design review (21 October 2026)
+
+An outside review of the layout ([REVIEW.md](REVIEW.md)) led to four parts
+moving in from the board edge, the plane vias moving out of the SMD pads, the
+0.10 mm signal track away from the fine-pitch pins being routed again or
+widened, and the bare right-angle corners being cut (`tools/review_rev4.py`;
+[PLACEMENT.md](PLACEMENT.md), [ROUTING_STATUS.md](ROUTING_STATUS.md)). Nothing
+in the circuit changed. Re-checked on that board:
+
+| check | result |
+|---|---|
+| KiCad 10.0.7 DRC, zones refilled | 0 unconnected, 0 copper violations under the new rules: copper 0.40 mm from the edge (was 0.22), via holes 0.10 mm clear of SMD pads (U9's and U12's exposed pads and U5 pin 15 excepted), 0.15 mm track outside the escape areas (`MUX_S0`, `MUX_S2`, `MUX_S3` and `SYNC_DE` excepted); rev-3's 5 silkscreen warnings |
+| Schematic parity | 199 items, all the leading-`/` name prefix or J5's two open SBU pins |
+| ERC | 0 errors |
+| `gen_rev4.py` / `check_faults.py` | 134 of 134 nets / 42 of 42 |
+| decoupling (`verify/layout/decap.py`) | every IC supply pin reaches its capacitor along F.Cu as before, at the same distance or less (USB_OTP_VDD's C18 2.88 mm, was 3.21). The capacitors' ground vias that sat in their pads are now 0.4–1.0 mm of track from them |
+| regulator layout (`vreg_loop.py`, `gndpath.py`) | unchanged: loop 2.60 mm², CIN 1.00 mm from VREG_VIN, its ground 1.00 mm from VREG_PGND and 0.94 mm from COUT's, VREG_FB 2.45 mm |
+| power paths (`powerpath.py`) | harness pass-through 133.4 mΩ (134.1); `+5V` from D2 to U12 106 mΩ (91), its bottom-edge run having moved in; the rest unchanged |
+| noise neighbours, reference planes (`aggr.py`, `refplane.py`) | the sense nodes have only the analog chain's own nets beside them, as before. In the ADC corner the widened tracks sit closer: `ADC_B` 0.138 mm from `ADC_AVDD` (0.163) and 0.121 mm from `RAIL_MON` (0.171). Plane coverage within 1.5 % of before on every net measured |
+| planes (`tools/zones_check.py`) | GND on In1 one piece, 1875.5 mm², all 100 GND vias; +3.3 V on In2 one piece, 1840.4 mm², all 31. Filled the same way, the 8 October board gives 1878.8 / 1841.0 mm² with 104 / 32 vias |
+| manufacture (`dfm_measure.py`, `dfm_jlcpcb.py`) | copper 0.48 mm or more from the outline centre line (was 0.27); via holes 0.25 mm apart on one net, 0.35 mm on different nets; mask webs 0.18 / 0.29 mm as before; 10 via holes in SMD pads (the exposed pads' 9 and U5 pin 15's), against 107 |
+| `fab/` against the board | regenerated: 300 via drills = 300 vias; 4 J5 shield slots, 4 J6 holes, 2 NPTH pegs; the CPLs move only C39, R1, R17 and D3; 69 BOM lines, unchanged |
+
 ## Verdict
 
 **The circuit is correct and complete. Nothing found would stop the board powering up,
@@ -91,7 +114,7 @@ the pieces that do exist need three corrections before they meet this board.
 | 14 | MINOR (docs) | The 20 Mbaud figure. The RP2350 UART tops out at UARTCLK / 16 = 9.375 Mbaud; 20 Mbit/s is the SN65HVD75's own maximum; the firmware plan (D5) runs a PIO UART at 12.5 Mbaud. | — | Corrected in ROUTING_STATUS.md and pairs_rev4.py today; the rev-3 README's bandwidth table (8 full maps at 80 fps = 1.39 MB/s) does not fit 12.5 Mbaud and needs redoing. | rev-3 |
 | 15 | MINOR (layout) | *8 Oct:* U13's VDD (pin 12) lost its F.Cu tie to its bypass C40 in the re-route: the plane-tie redraw tied C40 to C13, and USB_CC1 now runs where the tie was. Both reach the +3.3 V plane through vias; the nearest capacitor along F.Cu is C13, 4.1 mm away (was C40, 1.5 mm). | Little: the TUSB320 draws tens of µA. | Lay the C40–U13.12 tie before the TUSB320's nets in `preroute_rev4.py` and re-plan USB_CC1 / CC2 round it; with the tie in, no order of the four found a way. | the re-route |
 | 16 | MINOR (layout) | *8 Oct:* the harness pass-through J4.1 → J3.1 is 134 mΩ (was 101). Freerouting took +5V_BUS over the top of the board, 111 mm against 85; it is widened to 0.6 mm where it fits. | 94 mV per board at 0.7 A instead of 71. The far boards' bucks see a lower input; they run to 100 % duty, so 3.3 V holds. | Pre-route +5V_BUS straight across at 0.6 mm. | the re-route |
-| 17 | MINOR (DFM) | *8 Oct:* one +5V_USB via, at (137.69, 129.81), is 0.41 mm from J5's locating-peg hole; filled, capped vias are asked to keep 0.45 mm. | The fab may query it. | Move the via 0.05 mm; its tracks must be redrawn to stay octilinear. | the re-route |
+| 17 | MINOR (DFM) | *8 Oct:* one +5V_USB via, at (137.69, 129.81), is 0.41 mm from J5's locating-peg hole; filled, capped vias are asked to keep 0.45 mm. | The fab may query it. | *21 Oct:* the vias are now tented, not filled, so the 0.45 mm no longer applies (JLCPCB's via hole-to-hole minimum is 0.2 mm). A GND via moved by the design review is 0.27 mm from J5's shield-pin hole, on the same net. Both matter again only if the optional filled vias are ordered. | the re-route |
 
 ## Microcontroller (U9, RP2354A)
 
@@ -249,7 +272,8 @@ the pieces that do exist need three corrections before they meet this board.
 ## Layout, measured on the board
 
 *8 Oct:* re-measured on the re-routed board; the 5 October value follows in
-brackets where it changed.
+brackets where it changed. *21 Oct:* the design review's board changes these
+figures only where a note says so (the re-check table above has the rest).
 
 - **Decoupling** (`verify/layout/decap.py`).
   - Every RP2354A supply pin reaches a capacitor on F.Cu without a via:
@@ -259,7 +283,7 @@ brackets where it changed.
     - VREG_AVDD 2.53 mm, to CFILT (C43) where the minimal design has it [1.12 mm, to C16]
     - ADC_AVDD 2.70 mm [2.62]
     - USB_OTP_VDD 3.21 mm and QSPI_IOVDD 1.31 mm, both to C18 [1.23 mm, and
-      none for QSPI_IOVDD: finding 4]
+      none for QSPI_IOVDD: finding 4]; *21 Oct:* USB_OTP_VDD 2.88 mm
   - Every other IC's supply pin reaches its 100 nF on F.Cu at 0.97–3.90 mm,
     with one exception. The TUSB320's VDD (U13.12) has lost its F.Cu tie to its
     own C40 [1.54 mm]. The re-route's plane-tie redraw tied C40 to C13
@@ -283,6 +307,9 @@ brackets where it changed.
   | +5V_USB J5 VBUS A9 / B9 → U14 | 4.5 / 17.5 | 13.7 / 22.7 | 15.3 / 20.8 |
   | +5V D1 / D2 → U12 VIN | 5.5 / 121 | 5.3 / 141 | 3.3 / 91 |
   | VCORE L1 → DVDD 6 / 39 | 66 / 86 | 19 / 39 | 22 / 31 |
+
+  *21 Oct:* the pass-through is 133 mΩ and D2 → U12 106 mΩ, the `+5V` run
+  along the bottom edge having moved in; the rest as in the last column.
 
   - Load-carrying copper is ≥ 0.30 mm on outer layers, about 1 A for a 10 °C rise,
     and the 5 V rails are widened to 0.5–0.6 mm where they fit. The one 0.15 mm
@@ -312,15 +339,21 @@ brackets where it changed.
     - narrowest gap 0.100 mm (inside the escape areas); tracks ≥ 0.10 mm;
     - vias 0.30 / 0.50 and 0.30 / 0.60;
     - via holes 0.25 mm apart on the same net, 0.36 mm on different nets;
-    - copper 0.27 mm from the outline centre line;
+    - copper 0.27 mm from the outline centre line (*21 Oct:* 0.48 mm, after the
+      design review moved four parts in);
     - NPTH to copper 0.28 mm, PTH to copper 0.30 mm;
     - one via within 0.45 mm of a component hole: a +5V_USB via 0.41 mm from
       J5's locating-peg hole, inside JLCPCB's minimum but under the 0.45 mm
-      that filled, capped vias are asked to keep [none].
+      that filled, capped vias are asked to keep [none]. *21 Oct:* two, with a
+      GND via 0.27 mm from J5's shield-pin hole; the vias are now tented, so
+      the 0.45 mm applies only if the optional filling is ordered (finding 17).
   - Mask webs are 0.18 mm within a part and 0.29 mm between parts.
   - All of this is inside JLCPCB's published limits.
   - 46 vias sit wholly and 64 partly in SMD pads [51 / 74]: order epoxy-filled,
-    capped vias, as `fab/ORDER-NOTES.txt` says.
+    capped vias, as `fab/ORDER-NOTES.txt` says. *21 Oct:* the design review
+    moved them out. 10 still sit in SMD pads, the exposed pads' 9 and U5 pin
+    15's, and 2 more lands overlap a pad's edge with the hole 0.10 mm clear of
+    it; the vias are now tented, with filling optional.
 
 ## To measure at bring-up
 
