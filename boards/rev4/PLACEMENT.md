@@ -204,17 +204,41 @@ R38 and C46 kept their places with new values (0.68 Ω, 22 µF). J6 kept its
 place with new pin nets. The new silkscreen is a `1` beside pin 1 of J3 and
 J4 and `SC GND SD RUN` above J6.
 
+## After the design review: four parts in from the edge (21 October 2026)
+
+The design review ([REVIEW.md](REVIEW.md), comment 6) found four small parts
+with copper closer to the board outline than JLCPCB's 0.4 mm for a V-scored
+edge: two 0402 resistors and the 0805 harness capacitor at 0.27 mm, the status
+LED at 0.37 mm. `tools/review_rev4.py` moved each straight in, square to its
+edge, and drew its ties again; nothing else moved. C39, an MLCC, went further,
+to 0.75 mm, because flex cracking starts at board edges. The board's
+copper-to-edge rule went from 0.22 to 0.40 mm with them.
+
+| part | was | now | copper to the edge |
+|---|---|---|---|
+| C39 10 µF 0805 (+5V_BUS at J4) | (99.812, 122.651) | (100.291, 122.651) | 0.27 → 0.75 mm |
+| R1 10 k (SENSE_A pull-down) | (158.494, 117.800) | (158.265, 117.800) | 0.27 → 0.50 mm |
+| R17 1 k (status LED) | (147.500, 136.356) | (147.500, 136.127) | 0.27 → 0.50 mm |
+| D3 green LED 0603 | (144.000, 136.101) | (144.000, 135.972) | 0.37 → 0.50 mm |
+
+Rotations are unchanged. J1–J6 stay at the edges: the FFC connectors overhang
+it by design, and J3 / J4 (0.50 mm), J5 and J6 are at the edge to take their
+cables.
+
 ## What did not move
 
 Everything else. Before the 7 October fixes, 97 of the 104 parts on a middle
-board were at rev-3's exact position and rotation; now 78 of the 102 are. The
-24 that moved are the 7 above and the 17 of the regulator and buck corners and
-R30 / R31. One fiducial, FID2, moved 0.11 mm to keep its 0.6 mm clearance from
+board were at rev-3's exact position and rotation; after them 78 of the 102
+were, and after the design review 74 are. The 28 that moved are the 7 above,
+the 17 of the 7 October fixes (the regulator and buck corners, and R30 / R31)
+and the 4 moved in from the edge. One fiducial, FID2, moved 0.11 mm to keep its 0.6 mm clearance from
 the re-routed `AMP_A`; ROUTING_STATUS.md has the detail.
 
 The board was afterwards re-routed from scratch for straight 0 / 45 / 90-degree
 routing (ROUTING_STATUS.md). The first two re-routes kept this placement
 exactly - every footprint and pad at the same position and rotation, to the
-nanometre - and changed one thing that touches a part: R27.2's ground via now
-sits in its pad, to let the re-laid `BUS_N` pass over R27. The third, after the
-7 October fixes, keeps theirs.
+nanometre - and changed one thing that touches a part: R27.2's ground via then
+sat in its pad, to let the re-laid `BUS_N` pass over R27. The third, after the
+7 October fixes, keeps theirs. The design review moved R27.2's via out of the
+pad again, with the other vias that sat in SMD pads, all but U5 pin 15's and
+the exposed pads' (REVIEW.md).
