@@ -1,5 +1,7 @@
 """review_rev4.py in.kicad_pcb out.kicad_pcb [--stages edge,vias,reroute,widen,corners] - the design-review changes.
 
+(--stages also takes planes: the via stage's last check, on its own.)
+
 An experienced electrical engineer looked over the routed board (21 October
 2026) and made six comments. ../REVIEW.md measures each one on the board and
 says which hold; this script makes the layout changes for the ones that do,
@@ -34,7 +36,11 @@ DRC with zones refilled and the schematic parity check. In this order:
            a wider search, up to three nets taken up, and LAST_LOOSE (the
            debug and address lines, USB_ILIM, the damper link) may move too.
            The exposed pads' vias (U9's 7, U12's 2) stay: the RP2350 and
-           TPS62162 layouts put them there
+           TPS62162 layouts put them there. Last, every plane via is checked
+           against KiCad's own fill of its plane, and one whose centre is
+           outside it (moved into a through-hole pad's thermal-relief gap)
+           moves again, to where its whole land is in the fill; --stages
+           planes runs that check alone
   reroute  "Some of your signal lines change size randomly" and "any high speed
            traces should be above a ground pour ... keep them on the top
            layer." Every signal net with 0.10 mm track away from the fine-pitch
@@ -816,7 +822,56 @@ def vias(m, log):
         if not still or len(still) == before:
             break
     log("vias: %d still within %.2f mm of an opening: %s" % (len(still), WEB, still))
+    planes(m, log)
     return still
+
+
+def fills(m):
+    """Each plane's fill on its inner layer, by KiCad's own zone filler."""
+    K.ZONE_FILLER(m.b).Fill(m.b.Zones())
+    out = {}
+    for z in m.b.Zones():
+        if not z.GetIsRuleArea() and z.GetNetname() in PLANE:
+            for lid in (K.In1_Cu, K.In2_Cu):
+                if z.IsOnLayer(lid):
+                    out[z.GetNetname()] = z.GetFilledPolysList(lid)
+    return out
+
+
+def in_fill(fill, xy, r=0.0):
+    pts = [xy] + [(xy[0] + r * math.cos(k * math.pi / 4), xy[1] + r * math.sin(k * math.pi / 4)) for k in range(8)]
+    return all(fill.Contains(K.VECTOR2I(K.FromMM(x), K.FromMM(y)), -1) for x, y in pts)
+
+
+def planes(m, log):
+    """A plane via whose centre is outside its plane's fill reaches no plane: moved into a
+    through-hole pad's thermal-relief gap (the exact checks know nothing of zone fills),
+    or into a sliver the fill drops. Each is moved again, to a place where its whole land
+    is in the fill, and the planes filled again to see that it took."""
+    F = fills(m)
+    bad = [(v["net"], v["xy"]) for v in m.items if v["kind"] == "via" and v["net"] in F and not in_fill(F[v["net"]], v["xy"])]
+    O = Openings(m)
+    for net, xy in bad:
+        done, tried = None, set()
+        for _ in range(25):
+            # a move undone puts the via back as new items: look it up again each time
+            v = next((it for it in m.items if it["kind"] == "via" and math.dist(it["xy"], xy) < 1e-4), None)
+            c = next((c for c in relocate(m, v, O) if c[0] not in tried and
+                      in_fill(F[net], c[0], v["size"] / 2 + 0.05)), None) if v else None
+            if c is None:
+                break
+            q, plan, _tier, ign = c
+            tried.add(q)
+            if apply_move(m, v, q, plan, ign):
+                done = q
+                break
+        log("  %s via at (%.2f, %.2f) reaches no plane: %s" % (
+            net, xy[0], xy[1], "moved to (%.2f, %.2f)" % done if done else "no place in the fill found; left"))
+    if bad:
+        F = fills(m)
+    left = [(v["net"], v["xy"]) for v in m.items if v["kind"] == "via" and v["net"] in F and not in_fill(F[v["net"]], v["xy"])]
+    log("planes: %d plane via(s) outside their plane's fill%s" % (len(left), ": %s" % left if left else ""))
+    return not left
 
 
 # ---------------------------------------------------------------- parts at the edge
@@ -1397,7 +1452,7 @@ def main():
     m = lr.Model(a.src)
     for s in a.stages.split(","):
         log("== %s" % s)
-        {"edge": edge, "vias": vias, "reroute": reroute, "widen": widen, "corners": corners}[s](m, log)
+        {"edge": edge, "vias": vias, "planes": planes, "reroute": reroute, "widen": widen, "corners": corners}[s](m, log)
         m.save(a.dst)
         m.save(os.path.splitext(a.dst)[0] + ".%s.kicad_pcb" % s)       # each stage as it left the board
     trim(m, {it["net"] for it in m.items if it["kind"] == "track"})
