@@ -16,7 +16,7 @@ whole board. --planes-only is what the re-route still uses it for. Per net:
     around the net, on the layers it used before;
   - keep the result only if every pad is connected, every segment and via
     passes the exact clearance check (0.15 mm, 0.10 mm inside U9_escape /
-    U13_escape, 0.25 mm to holes, 0.22 mm to the edge), it adds at most one via
+    U13_escape, 0.25 mm to holes, lr.EDGE to the edge), it adds at most one via
     and it is no more than 35 % + 1 mm longer; otherwise put the old copper back
     exactly as it was;
   - the analog rules hold: SENSE / GAIN / ADC / RAIL_MON on F.Cu only; In2 (the

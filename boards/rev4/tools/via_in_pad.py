@@ -27,7 +27,8 @@ def measure(path):
     openings = []
     for f in b.GetFootprints():
         for p in f.Pads():
-            if p.GetAttribute() != K.PAD_ATTRIB_SMD:
+            # the 0201 footprints' paste-only apertures have no mask opening: not a second pad
+            if p.GetAttribute() != K.PAD_ATTRIB_SMD or not (p.IsOnLayer(K.F_Mask) or p.IsOnLayer(K.B_Mask)):
                 continue
             lay = K.F_Cu if p.IsOnLayer(K.F_Cu) else K.B_Cu
             exp = mm(p.GetSolderMaskExpansion(K.F_Mask if lay == K.F_Cu else K.B_Mask))

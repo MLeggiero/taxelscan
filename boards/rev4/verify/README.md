@@ -13,6 +13,7 @@ the simulations need `ngspice` (`apt install ngspice`) and numpy.
 | `layout/powerpath.py board` | DC resistance between power terminals (tracks and vias solved as a network; 35 um outer, 17.5 um inner copper) and the narrowest track of each net |
 | `layout/aggr.py board [gap]` | other nets' copper within `gap` mm (default 0.30) of each sensitive net on the same layer, with the parallel length and the closest gap |
 | `layout/refplane.py board` | the share of each critical net's track over solid plane: In1 GND under F.Cu, In2 +3.3V under B.Cu (zones refilled first) |
+| `layout/review.py board...` | the six comments of the 21 October design review (`../REVIEW.md`), measured: vias in SMD pad openings, signal width changes, +3.3 V track widths, bare corners by angle, signal copper on B.Cu, copper to the edge |
 | `analog/run_chain.py` | the mux-switch step through the whole chain (595 row, taxels and sneak paths, column capacitance, CD74HC4067, R1 10k, TLV9062 x6, R21 / C31, the ADC's sampling capacitor): time to 0.5 LSB at 12 bits, per column capacitance |
 | `analog/run_row.py` | the same for a row switch |
 | `analog/run_loop.py` | U7's loop gain and phase margin into R21 / C31, across model corners |

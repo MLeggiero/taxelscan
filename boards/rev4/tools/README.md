@@ -39,6 +39,8 @@ with a class-version error).
 | `fix_rev4.py [in] [out]` | the changes for `../VERIFICATION.md`'s findings 1-3 and 10, after `../gen_rev4.py` has written `rev4.net`: every signal track off; the plane ties of the parts that move off (and anything orphaned); C19 / C44 / C43 to 0402 and U12 to the TPS62162's WSON-8, R18 / R19 deleted, every pad re-pinned to `rev4.net`; the regulator corner placed at the RP2350A minimal design's offsets from U9.48, the buck in TI's layout and R30 / R31 under U14's pins 3 / 4; their GND / +3.3 V copper drawn (the regulator's two-via ground point, CFILT's via, pins 53 / 54 tied in the ring, the buck's exposed-pad grounds and vias); the `VREG_LX_cutout` rule area moved under L1 and the new LX track; the `1` marks at J3 / J4 and J6's legend; then every pad checked against `rev4.net` and every plane track and via checked exactly |
 | `finalize_rev4.py in` | installs a routed stage as `../rev4.kicad_pcb` with the project and rules restored, then DRC with zones refilled and schematic parity; exit 0 only if 0 unconnected, 0 copper errors and parity clean |
 | `via_in_pad.py board...` | the via-in-pad counts `../fab/STACKUP-NOTES.txt` quotes |
+| `review_rev4.py in out [--stages edge,vias,reroute,widen,corners]` | the changes for the 21 October design review (`../REVIEW.md`), on the routed board: C39 / R1 / R17 / D3 moved in from the edge and the copper-to-edge rule raised to 0.40 mm; every via but the exposed pads' moved out of the SMD pad openings with a 0.10 mm mask web (or its pads tied to a neighbour's via), signal nets in the way taken up and routed again; the 0.10 mm signal copper away from the fine-pitch pins routed again or widened to 0.15 mm, the fast logic nets with B.Cu costed; the bare 90-degree corners cut to two 45-degree bends; at the end, segments lying wholly on another of their net taken off. Each stage's board is saved beside the output. Run after `freeroute_rev4.py all` (or on the installed board), then `finalize_rev4.py` |
+| `render_rev4.py` | the board renders the READMEs show, by kicad-cli's 3D renderer: `../../../assets/taxelscan-v4-top.png` and `-bottom.png` with the parts (KiCad's 3D models installed), cropped to the board, and `../pcb_top.png`, the bare board |
 
 ## The full re-route (straight routing)
 
@@ -75,7 +77,7 @@ Windows checkout:
 
 | module | change |
 |---|---|
-| `lr.py` | the checkout root is found from this file; kicad-cli and the grid router are looked up per platform; scratch file names carry the process id, so two routers can run at once without overwriting each other's input; the board edge is the outline's centre line (KiCad measures the 0.22 mm copper-to-edge rule from there), not its bounding box, which took in half the 0.1 mm line width; a pad's own local clearance (the fiducials' 0.6 mm) is honoured in the checks and the search masks |
+| `lr.py` | the checkout root is found from this file; kicad-cli and the grid router are looked up per platform; scratch file names carry the process id, so two routers can run at once without overwriting each other's input; the board edge is the outline's centre line (KiCad measures the copper-to-edge rule from there), not its bounding box, which took in half the 0.1 mm line width; a pad's own local clearance (the fiducials' 0.6 mm) is honoured in the checks and the search masks; copper to the edge 0.40 mm (rev-3's 0.22) since the design review |
 | `rr2.py` | the same scratch-file fix; rev-3's `U8.` fine-pitch prefix and `VREF` protection dropped |
 | `grp_route.py` | rev-3's `grp.py`, renamed: on Linux `import grp` finds the standard library's group-database module first |
 | `grid_route2.cpp` | a portable `fopen_s` so g++ and clang build it |
@@ -83,5 +85,6 @@ Windows checkout:
 
 `../../rev3/audit-tools/README.md` documents the models and the rules they
 enforce: 0.15 mm everywhere, 0.10 mm when both items are in `U9_escape` or
-`U13_escape`, 0.25 mm copper-to-hole and hole-to-hole, 0.22 mm to the edge,
+`U13_escape`, 0.25 mm copper-to-hole and hole-to-hole, 0.22 mm to the edge
+(0.40 mm here since the design review: `lr.EDGE`),
 analog nets on F.Cu, In1.Cu never routed.

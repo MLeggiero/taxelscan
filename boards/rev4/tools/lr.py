@@ -8,7 +8,7 @@ grid router are looked up per platform, and scratch files go to <checkout>/tmp
 Obstacles come from pcbnew with real pad polygons. Clearance follows the board:
 0.15 mm, 0.10 mm when both items intersect a rule area (rev3.kicad_dru), a
 pad's own local clearance where it has one (the fiducials' 0.6 mm),
-0.25 mm copper-to-hole, 0.25 mm hole-to-hole, 0.22 mm copper-to-edge. Paths are
+0.25 mm copper-to-hole, 0.25 mm hole-to-hole, 0.40 mm copper-to-edge. Paths are
 searched on a fine grid by tmp/grid_route.exe, simplified by line of sight, and
 every emitted segment and via is re-checked exactly with shapely before it goes
 on the board.
@@ -34,7 +34,9 @@ LAYERS = ["F", "In2", "B"]
 ALLCU = ["F", "In1", "In2", "B"]
 LID = {"F": K.F_Cu, "In1": K.In1_Cu, "In2": K.In2_Cu, "B": K.B_Cu}
 LNAME = {v: k for k, v in LID.items()}
-RULE, FINE, HOLE, H2H, EDGE, SAFE = 0.15, 0.10, 0.25, 0.25, 0.22, 0.003
+# EDGE: copper to the outline's centre line, JLCPCB's V-cut figure since the 21 October
+# design review (../REVIEW.md); it was 0.22
+RULE, FINE, HOLE, H2H, EDGE, SAFE = 0.15, 0.10, 0.25, 0.25, 0.40, 0.003
 mm = K.ToMM
 
 

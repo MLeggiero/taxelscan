@@ -29,7 +29,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REV4 = os.path.normpath(os.path.join(HERE, ".."))
 BOARD = os.path.join(REV4, "rev4.kicad_pcb")
 SCR = os.path.normpath(os.path.join(REV4, "..", "..", "tmp"))
-WARN_ONLY = {"silk_overlap", "silk_over_copper", "lib_footprint_issues", "text_height",
+# lib_footprint_mismatch compares the board's footprints with the installed library's
+# copies (U9 points at its own QFN-60 model; U13 differs with the library version), so
+# it is reported only where KiCad's footprint libraries are installed, and is no copper
+WARN_ONLY = {"silk_overlap", "silk_over_copper", "lib_footprint_issues", "lib_footprint_mismatch", "text_height",
              "silk_edge_clearance", "text_thickness"}
 SIDEBAND = re.compile(r"Pad missing net given by schematic \(unconnected-\(J5-SBU[12]-Pad[AB]8\)\)")
 

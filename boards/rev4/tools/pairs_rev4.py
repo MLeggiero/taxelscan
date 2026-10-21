@@ -28,7 +28,8 @@ J4 end, so the pairs are drawn again, for this placement:
               up beside J3.5 / J3.6; BUS stays on F.Cu, steps up under R28 and
               R27, and BUS_N goes up between them and over R27 to J3.4. R27.2's
               ground via stood in BUS_N's way; it moves into the pad (the board
-              has filled, capped vias throughout).
+              then had filled, capped vias throughout; review_rev4.py moves it
+              out again).
 
 Every segment is at 0, 45 or 90 degrees, and lr's exact check (0.15 mm, 0.25
 mm to holes) passes on all of it before the board is saved. Run on the
