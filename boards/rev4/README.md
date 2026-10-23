@@ -13,6 +13,7 @@ positions, on rev-3's 60.3 × 35.9 mm outline.
 | `rev4.net`, `BOM.csv` | generated: the netlist and the bill of materials with LCSC numbers and notes |
 | `gen_schematic.py`, `layout_schematic.py`, `make_fab.py`, `kicad_tools.py` | the schematic generator and its drawing, the JLCPCB exporter, pcbnew helpers — rev-3's, retargeted |
 | `fab/` | the JLCPCB package from `make_fab.py`: gerbers, drills, `rev4-gerbers.zip`, middle-board and end-board BOM/CPL sets, drawings, order and stackup notes |
+| `jlc_placement.csv` | the rotation and origin offset JLCPCB needs for each part, fitted by `tools/jlc_placement.py` from the LCSC parts' own footprints; `make_fab.py` applies it to the CPLs |
 | `PLACEMENT.md` | the placement analysis: what removing U8 freed, every move considered, which were made and why |
 | `ROUTING_STATUS.md` | the routed board: how it was re-routed for straight routing, DRC, parity, plane health, open items |
 | `REVIEW.md` | the 21 October design review: an experienced electrical engineer's six comments on the layout, each measured on the board, and what changed for the ones that hold |

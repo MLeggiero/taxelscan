@@ -13,6 +13,20 @@ Assembly
   JLCPCB adds rails; J1/J2 overhang the top edge by 1.5 mm, so expect
   an SMT fixture fee. J6 is through-hole (or leave it for hand fit).
 
+Rotations and positions in the CPLs are already corrected for JLCPCB's
+own footprints (jlc_placement.csv, fitted pad by pad by
+tools/jlc_placement.py from each LCSC part's EasyEDA footprint):
+  turned -90 deg  U1-U4 (TSSOP-16), U5/U6 (SSOP-24), U7 (MSOP-8),
+                  U10/U11 (SOIC-8), J6 (pin header, also moved 3.81 mm
+                  from pin 1 to its middle)
+  turned 180 deg  U14 (SOT-23-6), D5 (SOT-666), Q1 (SOT-323)
+  moved           J5 1.57 mm, J1/J2 0.23 mm, J3/J4 0.10 mm (origin offsets)
+  unchanged       everything else, U9 / U12 / U13 / Y1 and the diodes and
+                  LED included (pad 1 is the cathode in both libraries)
+In the preview every part should now sit on its pads with pin 1 on pin 1.
+If one does not, fix that part in JLCPCB's editor and tell us which:
+its LCSC footprint has changed, and jlc_placement.py must be run again.
+
 Check in the placement preview before confirming
   L1: the polarity dot must sit on pad 1, the VCORE end - the west end,
       over COUT (C19) - per the RP2350 datasheet section 6.3.8.

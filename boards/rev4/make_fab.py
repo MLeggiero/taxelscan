@@ -22,9 +22,12 @@ judging a plane by eye.
 
 **Rotation is the classic JLCPCB failure.** Their library's idea of 0 degrees
 frequently disagrees with KiCad's, and a rotated 4067 is a scrapped board.
-This script emits the CPL straight from KiCad's own numbers and does NOT try
-to guess corrections - check every polarised and multi-pin part against
-JLCPCB's preview before releasing, which is a human step by design.
+JLCPCB places each LCSC part's own footprint, so `tools/jlc_placement.py`
+fits, part by part, the rotation and origin offset that carry KiCad's
+footprint onto that one (matched pad by pad, not guessed from package names)
+and writes `jlc_placement.csv`; this script applies it to the CPLs and stops
+if a placed part has no entry. Still check every polarised and multi-pin part
+against JLCPCB's preview before releasing: a human step by design.
 
 **A blank LCSC number is a hard stop for assembly.** JLCPCB will accept an order
 with a blank part field and simply not place those designators, so the script
@@ -45,6 +48,7 @@ import re
 import shutil
 import subprocess
 import sys
+import math
 import zipfile
 
 import gen_schematic as S
@@ -131,6 +135,7 @@ def main():
                 keep = sorted(r for r in refs if r not in skip)
                 if keep:
                     w.writerow([value, ",".join(keep), fp, lcsc])
+    lcsc_of = {ref: l.strip() for _v, refs, _fp, l in bom for ref in refs if l.strip()}
     bom = [(v, ",".join(sorted(r)), fp, l) for v, r, fp, l in bom]
     missing = [r for r in bom if not r[3]]
     print("  %-22s %d line(s), %d without an LCSC number; R11/R12 only in rev4-bom-end.csv"
@@ -155,10 +160,17 @@ def main():
                               ", ".join(r[1] for r in missing)))
         print("  %-22s %s" % ("", "-> fab/NEEDS-PARTS.txt"))
 
-    # ---- CPL, from KiCad's own placement numbers ----------------------------
+    # ---- CPL, from KiCad's placement, turned and moved onto each LCSC part's
+    # own footprint (tools/jlc_placement.py fits jlc_placement.csv) -----------
+    corr = {}
+    corr_path = os.path.join(HERE, "jlc_placement.csv")
+    if os.path.exists(corr_path):
+        for c in csv.DictReader(io.open(corr_path, encoding="utf-8")):
+            corr[(c["LCSC"], c["Footprint"])] = (float(c["Rotation"]), float(c["Offset X"]),
+                                                 float(c["Offset Y"]))
     if os.path.exists(pos):
         rows = list(csv.DictReader(io.open(pos, encoding="utf-8")))
-        counts = []
+        counts, turned, unchecked = [], set(), set()
         for suffix, skip in VARIANTS:
             with io.open(os.path.join(FAB, "rev4-cpl%s.csv" % suffix), "w",
                          encoding="utf-8", newline="") as fh:
@@ -169,14 +181,31 @@ def main():
                     ref = r.get("Ref") or r.get("Designator") or ""
                     if ref in skip:
                         continue
-                    w.writerow([ref, r.get("PosX"), r.get("PosY"),
-                                "Top" if (r.get("Side") or "").lower() == "top"
-                                else "Bottom", r.get("Rot")])
+                    x, y, rot = r.get("PosX"), r.get("PosY"), r.get("Rot")
+                    c = corr.get((lcsc_of.get(ref, ""), r.get("Package", "")))
+                    if c is None:
+                        unchecked.add(ref)
+                    elif c[0] or math.hypot(c[1], c[2]) >= 0.0005:
+                        # rotation theta - delta; position P + R(theta) . offset
+                        th = math.radians(float(rot))
+                        x = "%.6f" % (float(x) + c[1] * math.cos(th) - c[2] * math.sin(th))
+                        y = "%.6f" % (float(y) + c[1] * math.sin(th) + c[2] * math.cos(th))
+                        a = (float(rot) - c[0]) % 360.0
+                        rot = "%.6f" % (a - 360.0 if a > 180.0 else a)
+                        turned.add(ref)
+                    w.writerow([ref, x, y, "Top" if (r.get("Side") or "").lower() == "top"
+                                else "Bottom", rot])
                     n += 1
             counts.append(n)
         os.remove(pos)
-        print("  %-22s %d part(s) on middle boards, %d on the two end boards"
-              % ("CPL", counts[0], counts[1]))
+        print("  %-22s %d part(s) on middle boards, %d on the two end boards; %d turned or moved "
+              "onto their LCSC footprints (jlc_placement.csv)" % ("CPL", counts[0], counts[1], len(turned)))
+        if unchecked:
+            # a part JLCPCB would place from KiCad's numbers alone, unchecked against
+            # its own footprint: rotated parts are exactly how a board is scrapped
+            print("  %-22s %s: no jlc_placement.csv entry - run tools/jlc_placement.py"
+                  % ("CPL NOT CHECKED", ", ".join(sorted(unchecked))))
+            ok = False
 
     # ---- what the board assumes of the fab ---------------------------------
     # The board file carries no stackup block, so a fab builds it to their
@@ -245,6 +274,20 @@ def main():
             "  The two end boards: rev4-bom-end.csv + rev4-cpl-end.csv",
             "  JLCPCB adds rails; J1/J2 overhang the top edge by 1.5 mm, so expect",
             "  an SMT fixture fee. J6 is through-hole (or leave it for hand fit).",
+            "",
+            "Rotations and positions in the CPLs are already corrected for JLCPCB's",
+            "own footprints (jlc_placement.csv, fitted pad by pad by",
+            "tools/jlc_placement.py from each LCSC part's EasyEDA footprint):",
+            "  turned -90 deg  U1-U4 (TSSOP-16), U5/U6 (SSOP-24), U7 (MSOP-8),",
+            "                  U10/U11 (SOIC-8), J6 (pin header, also moved 3.81 mm",
+            "                  from pin 1 to its middle)",
+            "  turned 180 deg  U14 (SOT-23-6), D5 (SOT-666), Q1 (SOT-323)",
+            "  moved           J5 1.57 mm, J1/J2 0.23 mm, J3/J4 0.10 mm (origin offsets)",
+            "  unchanged       everything else, U9 / U12 / U13 / Y1 and the diodes and",
+            "                  LED included (pad 1 is the cathode in both libraries)",
+            "In the preview every part should now sit on its pads with pin 1 on pin 1.",
+            "If one does not, fix that part in JLCPCB's editor and tell us which:",
+            "its LCSC footprint has changed, and jlc_placement.py must be run again.",
             "",
             "Check in the placement preview before confirming",
             "  L1: the polarity dot must sit on pad 1, the VCORE end - the west end,",
