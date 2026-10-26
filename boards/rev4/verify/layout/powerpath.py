@@ -103,15 +103,20 @@ def resistance(its, node, edges, a_ref, b_ref):
     return r if np.isfinite(r) and r < 1e3 else None
 
 
-m = lr.Model(sys.argv[1])
-cache = {}
-print("%-11s %-6s -> %-6s %10s  %9s  %s" % ("net", "from", "to", "R (mOhm)", "min w (mm)", "what"))
-for net, a, b, what in PATHS:
-    if net not in cache:
-        cache[net] = network(m, net)
-    its, node, edges = cache[net]
-    r = resistance(its, node, edges, a, b)
-    ws = [it["w"] for it in its if it["kind"] == "track"]
-    nv = sum(1 for it in its if it["kind"] == "via")
-    print("%-11s %-6s -> %-6s %10s  %9s  %s (net: %d vias)" % (net, a, b, "%.1f" % (r * 1e3) if r is not None else "open",
-          "%.2f" % min(ws) if ws else "-", what, nv))
+def main():
+    m = lr.Model(sys.argv[1])
+    cache = {}
+    print("%-11s %-6s -> %-6s %10s  %9s  %s" % ("net", "from", "to", "R (mOhm)", "min w (mm)", "what"))
+    for net, a, b, what in PATHS:
+        if net not in cache:
+            cache[net] = network(m, net)
+        its, node, edges = cache[net]
+        r = resistance(its, node, edges, a, b)
+        ws = [it["w"] for it in its if it["kind"] == "track"]
+        nv = sum(1 for it in its if it["kind"] == "via")
+        print("%-11s %-6s -> %-6s %10s  %9s  %s (net: %d vias)" % (net, a, b, "%.1f" % (r * 1e3) if r is not None else "open",
+              "%.2f" % min(ws) if ws else "-", what, nv))
+
+
+if __name__ == "__main__":
+    main()

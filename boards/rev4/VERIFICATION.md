@@ -49,7 +49,7 @@ in the circuit changed. Re-checked on that board:
 
 | check | result |
 |---|---|
-| KiCad 10.0.7 DRC, zones refilled | 0 unconnected, 0 copper violations under the new rules: copper 0.40 mm from the edge (was 0.22), via holes 0.10 mm clear of SMD pads (U9's and U12's exposed pads and U5 pin 15 excepted), 0.15 mm track outside the escape areas (`MUX_S0`, `MUX_S2`, `MUX_S3` and `SYNC_DE` excepted); rev-3's 5 silkscreen warnings |
+| KiCad 10.0.7 DRC, zones refilled | 0 unconnected, 0 copper violations under the new rules: copper 0.40 mm from the edge (was 0.22), via holes 0.10 mm clear of SMD pads (U9's and U12's exposed pads and U5 pin 15 excepted; *26 Oct:* U5 pin 15 no longer), 0.15 mm track outside the escape areas (`MUX_S0`, `MUX_S2`, `MUX_S3` and `SYNC_DE` excepted); rev-3's 5 silkscreen warnings |
 | Schematic parity | 199 items, all the leading-`/` name prefix or J5's two open SBU pins |
 | ERC | 0 errors |
 | `gen_rev4.py` / `check_faults.py` | 134 of 134 nets / 42 of 42 |
@@ -58,8 +58,76 @@ in the circuit changed. Re-checked on that board:
 | power paths (`powerpath.py`) | harness pass-through 133.4 mΩ (134.1); `+5V` from D2 to U12 106 mΩ (91), its bottom-edge run having moved in; the rest unchanged |
 | noise neighbours, reference planes (`aggr.py`, `refplane.py`) | the sense nodes have only the analog chain's own nets beside them, as before. In the ADC corner the widened tracks sit closer: `ADC_B` 0.138 mm from `ADC_AVDD` (0.163) and 0.121 mm from `RAIL_MON` (0.171). Plane coverage within 1.5 % of before on every net measured |
 | planes (`tools/zones_check.py`) | GND on In1 one piece, 1875.5 mm², all 100 GND vias; +3.3 V on In2 one piece, 1840.4 mm², all 31. Filled the same way, the 8 October board gives 1878.8 / 1841.0 mm² with 104 / 32 vias |
-| manufacture (`dfm_measure.py`, `dfm_jlcpcb.py`) | copper 0.48 mm or more from the outline centre line (was 0.27); via holes 0.25 mm apart on one net, 0.35 mm on different nets; mask webs 0.18 / 0.29 mm as before; 10 via holes in SMD pads (the exposed pads' 9 and U5 pin 15's), against 107 |
+| manufacture (`dfm_measure.py`, `dfm_jlcpcb.py`) | copper 0.48 mm or more from the outline centre line (was 0.27); via holes 0.25 mm apart on one net, 0.35 mm on different nets; mask webs 0.18 / 0.29 mm as before; 10 via holes in SMD pads (the exposed pads' 9 and U5 pin 15's), against 107; *26 Oct:* 9 |
 | `fab/` against the board | regenerated: 300 via drills = 300 vias; 4 J5 shield slots, 4 J6 holes, 2 NPTH pegs; the CPLs move only C39, R1, R17 and D3; 69 BOM lines, unchanged |
+
+## Since then: routing, vias and a lower-resistance mat, checked again (26 October 2026)
+
+Three questions: is the routing right, are the vias right, and can a mat of much
+lower resistance damage the board? The routing was checked three independent
+ways, the last on the Gerber files the fab gets. Each new check was first shown
+to catch a fault planted on purpose. One via problem turned up and is fixed: U5
+pin 15's via sat half inside its pad's opening. That pad's toe is now cut back
+0.30 mm ([REVIEW.md](REVIEW.md), comment 1). Nothing else changed.
+
+| check | result |
+|---|---|
+| KiCad 10.0.7 DRC, zones refilled, all track errors (`tools/finalize_rev4.py`) | 0 unconnected, 0 copper violations, with U5 pin 15 no longer excepted from "via hole clear of SMD pads"; parity clean; silkscreen and library warnings only (U5 now differs from its library footprint by that pad) |
+| copper from the shapes alone (`verify/layout/copper.py`: shapely, not KiCad's DRC or connectivity) | 134 nets, each one piece holding all its pads; no copper with no pad; no two nets touching (the three ADDR jumpers are bridged by design); spacing at or above the rules on all four layers (0.100 mm in the escape areas, 0.150 elsewhere); hole to other copper ≥ 0.250 mm, hole to hole ≥ 0.254 mm, copper ≥ 0.425 mm from the outline; every pad's net as `rev4.net` has it |
+| e-test of the Gerbers and drill files (`verify/layout/etest.py`: gerbv renders them at 10 µm; nets from `rev4.net`) | 522 pads, 134 nets: 0 opens, 0 shorts but ADDR0–2 to GND through JP1–JP3 (by design), no stray copper. A via drill taken out of a copy opens `COL_31`; 0.25 mm of copper between U9 pins 2 and 3 shorts them |
+| `fab/` against the board | the Gerbers and drill files are what the board plots today, dates aside, and the zip holds exactly them |
+| vias (`verify/layout/vias.py`) | 300 (224 at 0.5 / 0.3 mm, 76 at 0.6 / 0.3), each joining two or more layers. All 131 plane vias are in their plane's fill. Every via but the exposed pads' 9 is tented on both sides, and no paste is printed over any other (read from the mask and paste Gerbers). JLCPCB's limits (via hole 0.15 mm, via hole to track 0.2, hole to hole 0.2, inner via hole to copper 0.2) against 0.30, 0.25, 0.254 and 0.25 here |
+| via current | each crossing on the harness and USB 5 V paths, and the ground pins of J3 / J4, is one via: up to 0.76 A in one 0.3 mm via at the 697 mA feed limit, against 0.8–1.6 A for a 10 °C rise (IPC-2221 on a 20 µm barrel). Within rating, but a second via beside each would halve it |
+| layout re-measured | unchanged but the via-in-pad counts: 9 via holes in SMD pads, all in the exposed pads |
+
+Other notes on the vias, none needing a change:
+
+- Inside the escape areas the 0.10 mm rule also holds between the inner planes
+  and other nets' via pads. 125 via pads have the plane 0.10–0.15 mm away, and
+  the hole still has 0.25 mm. JLCPCB allows 0.09 mm.
+- One `+5V_USB` via is under J5's shell, 0.65 mm inside its back edge, on the
+  VBUS track that already runs under the receptacle between its two VBUS pin
+  groups, as USB-C layouts do. Solder mask insulates both.
+- The exposed pads' 9 vias have paste printed over them. That leaves some
+  voiding under U9 and U12, as open thermal vias do. Filled, capped vias (paid
+  on 4 layers) would stop it.
+
+**A lower-resistance mat** (`verify/analog/low_r.py`, a DC solve of the whole
+32 × 32 mat, U1–U4, U5 / U6, R1 / R2 and U7 at the rail's 3.43 V maximum). The
+595s drive every row all the time: OE is tied low, the scanned row is high and
+the other 31 are low. A column joins its taxels on every row, so two pressed
+taxels on one column join the high row to a low one. The 595 outputs then
+drive each other through the mat, and only the taxels limit it. The current
+only grows as any taxel's resistance falls, so the whole mat pressed at the
+sensor's lowest resistance bounds every pattern.
+
+| lowest taxel resistance, whole mat pressed | 595 output, scanning | rating |
+|---|---|---|
+| 38 kΩ (this sensor's clip point) | 2.8 mA | inside the 24 mA operating rating 8.6 times over |
+| 10 kΩ | 10.3 mA | inside |
+| ≥ 4.1 kΩ | ≤ 24 mA | operating rating: no pattern can exceed it |
+| ≥ 1.8 kΩ | ≤ 50 mA | absolute maximum |
+| 1 kΩ / 100 Ω / dead short | 81 / 253 / about 330 mA | **past the absolute maximum: the 595 can be damaged** |
+
+- A smaller press needs a lower resistance to do harm. A k × k press over the
+  scanned row stays within 24 mA down to 123 Ω for 2 × 2, 921 Ω for 8 × 8 and
+  1.98 kΩ for 16 × 16.
+- Nothing else is at risk at any resistance, a dead short included. The
+  selected mux switch feeds only R1 / R2 and U7's input, so it carries at most
+  0.34 mA, against the 4067's 25 mA. Every pin the mat reaches (595 outputs,
+  mux inputs, U7's inputs) runs from the same +3.3 V as its own supply, so
+  none can be pushed past its rail. U7 is on that rail too, and its output
+  tops out at 3.265 V, below the RP2354A's IOVDD and ADC_AVDD.
+- At power-up the 595s' registers are unknown (TI's datasheet says so) and OE
+  is tied low, so random rows are high until the firmware clears them. One
+  595 with all eight rows high against the other 24, with the whole mat
+  pressed, passes its 100 mA VCC rating below 6.3 kΩ. With this mat it is
+  17 mA. The firmware plan already clocks zeros through and latches them
+  before anything else (finding 18).
+- A mat that low reads full scale long before any of this: readings clip below
+  38 kΩ, so a lower-resistance sensor needs R1 / R2 and the gain changed
+  anyway. Keep R1 / R2 at 150 Ω or more: at 47 Ω a shorted taxel puts 27 mA
+  through the mux switch.
 
 ## Verdict
 
@@ -115,6 +183,7 @@ the pieces that do exist need three corrections before they meet this board.
 | 15 | MINOR (layout) | *8 Oct:* U13's VDD (pin 12) lost its F.Cu tie to its bypass C40 in the re-route: the plane-tie redraw tied C40 to C13, and USB_CC1 now runs where the tie was. Both reach the +3.3 V plane through vias; the nearest capacitor along F.Cu is C13, 4.1 mm away (was C40, 1.5 mm). | Little: the TUSB320 draws tens of µA. | Lay the C40–U13.12 tie before the TUSB320's nets in `preroute_rev4.py` and re-plan USB_CC1 / CC2 round it; with the tie in, no order of the four found a way. | the re-route |
 | 16 | MINOR (layout) | *8 Oct:* the harness pass-through J4.1 → J3.1 is 134 mΩ (was 101). Freerouting took +5V_BUS over the top of the board, 111 mm against 85; it is widened to 0.6 mm where it fits. | 94 mV per board at 0.7 A instead of 71. The far boards' bucks see a lower input; they run to 100 % duty, so 3.3 V holds. | Pre-route +5V_BUS straight across at 0.6 mm. | the re-route |
 | 17 | MINOR (DFM) | *8 Oct:* one +5V_USB via, at (137.69, 129.81), is 0.41 mm from J5's locating-peg hole; filled, capped vias are asked to keep 0.45 mm. | The fab may query it. | *21 Oct:* the vias are now tented, not filled, so the 0.45 mm no longer applies (JLCPCB's via hole-to-hole minimum is 0.2 mm). A GND via moved by the design review is 0.27 mm from J5's shield-pin hole, on the same net. Both matter again only if the optional filled vias are ordered. | the re-route |
+| 18 | MINOR (firmware) | *26 Oct:* the 595s power up with unknown registers (TI's datasheet says so), and OE is tied low, so random rows are driven high against the rest until the firmware loads them. Through a pressed mat that is the 595s driving each other. | With this mat, at most 17 mA through one 595. A mat below 6.3 kΩ pressed over its whole area would pass a 595's 100 mA rating for the few milliseconds of boot. | `firmware/rev3/PLAN.md` already puts it first ("Boot order matters": clock 32 zeros and latch before anything else); the rev-4 firmware must keep it there. | rev-1 |
 
 ## Microcontroller (U9, RP2354A)
 
@@ -353,7 +422,9 @@ figures only where a note says so (the re-check table above has the rest).
     capped vias, as `fab/ORDER-NOTES.txt` says. *21 Oct:* the design review
     moved them out. 10 still sit in SMD pads, the exposed pads' 9 and U5 pin
     15's, and 2 more lands overlap a pad's edge with the hole 0.10 mm clear of
-    it; the vias are now tented, with filling optional.
+    it; the vias are now tented, with filling optional. *26 Oct:* U5 pin 15's
+    pad toe is cut back 0.30 mm, its hole now 0.15 mm clear: 9 remain, all in
+    the exposed pads, and 1 land overlaps a pad's edge.
 
 ## To measure at bring-up
 
@@ -371,3 +442,6 @@ figures only where a note says so (the re-check table above has the rest).
 7. The RP2354A's stepping (CHIP_ID.REVISION and the bootrom version byte); crystal
    start-up; USB enumeration.
 8. In JLCPCB's placement preview: L1's dot, pin 1 of U9 / U12 / U14 / D5, D3's cathode.
+9. Before fitting a mat of another material: its lowest resistance with the whole
+   area loaded. Below 4.1 kΩ the row drivers leave their operating rating, below
+   1.8 kΩ their absolute maximum (`verify/analog/low_r.py`).
