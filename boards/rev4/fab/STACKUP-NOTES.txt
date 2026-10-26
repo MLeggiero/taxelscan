@@ -17,22 +17,23 @@ inside JLCPCB's via rule (pad >= hole + 0.10 mm) at no extra cost.
 The vias are tented: solder mask covers each one on both sides, except
 where it sits in a pad's opening. No via hole is in an SMD pad's
 solder-mask opening, or within 0.10 mm of one (JLCPCB's minimum mask
-bridge), except
-  - the 9 ground vias in the exposed pads of U9 (7) and U12 (2), where the
-    RP2350 and TPS62162 layouts put them, under the paste windows;
-  - U5 pin 15's ground via (that mux's enable, tied low): no place clear
-    of the pads was found for it, even with the column lines round it
-    routed again, so its hole still overlaps the toe of the pad.
-tools/via_in_pad.py counts them, and the board rule 'via hole clear of
-SMD pads' holds the rest in KiCad's DRC. Until the 21 October design
-review 98 vias besides the exposed pads' had their holes in pads, 32 of
-them on one pad of a two-pad passive (the tombstoning case), and the
-board had to be ordered with epoxy-filled, capped vias (../REVIEW.md).
+bridge), except the 9 ground vias in the exposed pads of U9 (7) and
+U12 (2), where the RP2350 and TPS62162 layouts put them, under the
+paste windows. U5 pin 15's ground via (that mux's enable, tied low) is
+boxed in by the column lines at the toe of its pad, so that pad's toe
+is cut back 0.30 mm (1.60 mm long, the other pins 1.90): the hole is
+0.15 mm clear of it, under the mask, and the lead still lands on the
+pad at the package's largest lead span. tools/via_in_pad.py counts
+them, and the board rule 'via hole clear of SMD pads' holds the rest
+in KiCad's DRC. Until the 21 October design review 98 vias besides the
+exposed pads' had their holes in pads, 32 of them on one pad of a
+two-pad passive (the tombstoning case), and the board had to be
+ordered with epoxy-filled, capped vias (../REVIEW.md).
 
-Epoxy filled and capped vias are now optional. They keep paste from
-draining into the exposed-pad vias, which otherwise leave some voiding
-under U9 and U12, as any open thermal via does, and into U5.15's.
-Without them, check U5 pin 15's joint and the exposed pads at inspection.
+Epoxy filled and capped vias are now optional (a paid option on a
+4-layer board). They keep paste from draining into the exposed-pad
+vias, which otherwise leave some voiding under U9 and U12, as any open
+thermal via does. Without them, check the exposed pads at inspection.
 
 Copper is at least 0.40 mm from the outline everywhere: JLCPCB's figure
 for a V-scored edge (a routed edge needs 0.2 mm).

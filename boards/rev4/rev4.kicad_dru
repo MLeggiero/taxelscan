@@ -27,10 +27,11 @@
 # No via hole in or within 0.10 mm of an SMD pad of any net (JLCPCB's minimum solder-mask
 # bridge), so the board needs no filled vias: the vias are tented and the mask web keeps
 # solder out of them. The exposed pads of U9 (RP2354A) and U12 (TPS62162) keep their
-# ground vias, as both makers' layouts have them, and so does U5 pin 15 (that mux's
-# enable, tied low): no place clear of the pads was found for it, even with the column
-# lines round it routed again (REVIEW.md, comment 1). physical_hole_clearance applies
-# across nets; existsOnLayer leaves out the paste-only apertures some footprints carry.
+# ground vias, as both makers' layouts have them. U5 pin 15 (that mux's enable, tied
+# low) had its via at the toe of its pad, boxed in by the column lines; the pad's toe is
+# cut back 0.30 mm instead, so the hole is 0.15 mm clear of it (REVIEW.md, comment 1).
+# physical_hole_clearance applies across nets; existsOnLayer leaves out the paste-only
+# apertures some footprints carry.
 (rule "via hole clear of SMD pads"
-  (condition "A.Type == 'Via' && B.Type == 'Pad' && B.Pad_Type == 'SMD' && B.existsOnLayer('F.Cu') && !(B.memberOfFootprint('U9') && B.Pad_Number == '61') && !(B.memberOfFootprint('U12') && B.Pad_Number == '9') && !(B.memberOfFootprint('U5') && B.Pad_Number == '15')")
+  (condition "A.Type == 'Via' && B.Type == 'Pad' && B.Pad_Type == 'SMD' && B.existsOnLayer('F.Cu') && !(B.memberOfFootprint('U9') && B.Pad_Number == '61') && !(B.memberOfFootprint('U12') && B.Pad_Number == '9')")
   (constraint physical_hole_clearance (min 0.1mm)))

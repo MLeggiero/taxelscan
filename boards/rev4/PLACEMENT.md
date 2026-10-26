@@ -241,4 +241,6 @@ nanometre - and changed one thing that touches a part: R27.2's ground via then
 sat in its pad, to let the re-laid `BUS_N` pass over R27. The third, after the
 7 October fixes, keeps theirs. The design review moved R27.2's via out of the
 pad again, with the other vias that sat in SMD pads, all but U5 pin 15's and
-the exposed pads' (REVIEW.md).
+the exposed pads' (REVIEW.md). U5 pin 15's via was boxed in, so on 26 October
+that one pad's toe was cut back 0.30 mm (1.60 mm long, the others 1.90),
+leaving the hole 0.15 mm clear of it. U5 is otherwise where it was.

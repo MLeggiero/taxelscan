@@ -1,4 +1,4 @@
-"""review_rev4.py in.kicad_pcb out.kicad_pcb [--stages edge,vias,reroute,widen,corners] - the design-review changes.
+"""review_rev4.py in.kicad_pcb out.kicad_pcb [--stages edge,vias,reroute,widen,corners,toe] - the design-review changes.
 
 (--stages also takes planes: the via stage's last check, on its own.)
 
@@ -66,6 +66,13 @@ DRC with zones refilled and the schematic parity check. In this order:
            chamfer first; the core regulator's and the ADC corner's drawn
            nets aside, and never leaving a 0.10 mm segment wholly outside the
            escape areas.
+  toe      (26 October) the via the via stage could not move: U5 pin 15's,
+           centred on the toe of its pad with half its hole under the paste,
+           boxed in by MUX_S0's via and the column lines. A via left in a
+           gull-wing pad of its own net, at the pad's outer end, gets that end
+           cut back until its hole is 0.15 mm clear (at most 0.35 mm off the
+           pad): the via is then a dog-bone under the mask, its tie still
+           running into the pad, and the heel keeps its length.
 
 After every rip-up, trim() cuts the free track ends the rip-up loop leaves back to
 the last point where something still attaches (KiCad's dangling report names whole
@@ -874,6 +881,59 @@ def planes(m, log):
     return not left
 
 
+TOE_WEB = 0.15           # hole to a shortened pad: the 0.10 mm mask bridge and 0.05 mm to spare
+TOE_MAX = 0.35           # the most a pad's toe is cut back
+
+
+def toe(m, log):
+    """A via the via stage left in an SMD pad's opening lets that pad's solder drain into
+    its hole at reflow. Where the hole sits at the outer end (the toe) of a gull-wing lead's
+    pad of the via's own net, that end is cut back until the hole is TOE_WEB clear of it,
+    by at most TOE_MAX: the via then lies beyond the pad under the mask, a dog-bone, its tie
+    still running into the pad, and the heel, where a gull-wing joint carries its strength,
+    keeps its length. Exposed pads are left as they are."""
+    O = Openings(m)
+    cut_any = []
+    for v in [it for it in m.items if it["kind"] == "via"]:
+        if O.in_ep(v["xy"], v["drill"]):
+            continue
+        d, o = O.web(v["xy"], v["drill"])
+        if o is None or d >= WEB - 1e-4:
+            continue
+        f = m.b.FindFootprintByReference(o[0])
+        p = next(q for q in f.Pads() if q.GetNumber() == o[1])
+        g = lr.polyset(p.GetEffectivePolygon(K.F_Cu, K.ERROR_OUTSIDE))
+        x0, y0, x1, y1 = g.bounds
+        ax = 0 if x1 - x0 > y1 - y0 else 1                    # the pad's long axis, on the board
+        lo, hi = (x0, x1) if ax == 0 else (y0, y1)
+        c, fc = v["xy"], (mm(f.GetPosition().x), mm(f.GetPosition().y))
+        pc = (mm(p.GetPosition().x), mm(p.GetPosition().y))
+        out = 1.0 if pc[ax] > fc[ax] else -1.0                # away from the part's centre
+        end = hi if out > 0 else lo
+        inside = (end - c[ax]) * out                          # hole centre inward of the toe
+        across = abs(c[1 - ax] - pc[1 - ax]) <= ((y1 - y0) if ax == 0 else (x1 - x0)) / 2
+        cut = inside + v["drill"] / 2 + TOE_WEB
+        where = "%s via at (%.2f, %.2f), %s.%s" % (v["net"], c[0], c[1], o[0], o[1])
+        if p.GetNetname() != v["net"] or not across or not 0 < cut <= TOE_MAX:
+            log("toe: %s: not at the toe of its own pad, or too far in (%.2f mm); left" % (where, cut))
+            continue
+        s = p.GetSize(K.F_Cu)
+        p.SetSize(K.F_Cu, K.VECTOR2I(s.x - K.FromMM(cut), s.y) if s.x >= s.y else K.VECTOR2I(s.x, s.y - K.FromMM(cut)))
+        q = [pc[0], pc[1]]
+        q[ax] -= out * cut / 2
+        p.SetPosition(K.VECTOR2I(K.FromMM(q[0]), K.FromMM(q[1])))
+        cut_any.append((where, round(cut, 3), round((hi - lo) - cut, 3)))
+    m.index()
+    O = Openings(m)
+    left = [(v["net"], v["xy"]) for v in m.items if v["kind"] == "via" and not O.in_ep(v["xy"], v["drill"])
+            and O.web(v["xy"], v["drill"])[0] < WEB - 1e-4]
+    for where, cut, length in cut_any:
+        log("  toe: %s: pad cut back %.2f mm at its outer end, to %.2f mm" % (where, cut, length))
+    log("toe: %d pad(s) shortened; %d via(s) still within %.2f mm of an opening%s" % (
+        len(cut_any), len(left), WEB, ": %s" % left if left else ""))
+    return not left
+
+
 # ---------------------------------------------------------------- parts at the edge
 def tie_tracks(m, pad):
     """Tracks of pad's net with an end inside the pad's copper."""
@@ -1437,7 +1497,7 @@ def corners(m, log, sizes=(0.6, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.075, 0.05
     return done, failed
 
 
-STAGES = ("edge", "vias", "reroute", "widen", "corners")
+STAGES = ("edge", "vias", "reroute", "widen", "corners", "toe")
 
 
 def main():
@@ -1452,7 +1512,8 @@ def main():
     m = lr.Model(a.src)
     for s in a.stages.split(","):
         log("== %s" % s)
-        {"edge": edge, "vias": vias, "planes": planes, "reroute": reroute, "widen": widen, "corners": corners}[s](m, log)
+        {"edge": edge, "vias": vias, "planes": planes, "reroute": reroute, "widen": widen, "corners": corners,
+         "toe": toe}[s](m, log)
         m.save(a.dst)
         m.save(os.path.splitext(a.dst)[0] + ".%s.kicad_pcb" % s)       # each stage as it left the board
     trim(m, {it["net"] for it in m.items if it["kind"] == "track"})

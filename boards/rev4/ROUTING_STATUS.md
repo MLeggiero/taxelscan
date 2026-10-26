@@ -46,9 +46,11 @@ hold, on this routing; nothing was routed again from scratch. In order:
    taken off, their pads tied on F.Cu to a neighbour's via. 12 of the 89 moved
    only after the signal nets boxing them in were taken up and routed again
    round them. A pad's own track to somewhere else (a capacitor's to its IC
-   pin) stays as it was. U5 pin 15's via stays in its pad. Every plane via
-   was then checked against KiCad's fill of its plane, and the one that had
-   moved into the thermal-relief gap round J5's shield pin moved again.
+   pin) stays as it was. Every plane via was then checked against KiCad's
+   fill of its plane, and the one that had moved into the thermal-relief gap
+   round J5's shield pin moved again. The last, U5 pin 15's, was boxed in at
+   the toe of its pad; on 26 October that pad's toe was cut back 0.30 mm
+   instead (the `toe` stage), so its hole is 0.15 mm clear of the opening.
 3. **Widths.** The nets with 0.10 mm track away from the fine-pitch pins were
    routed again at 0.15 mm end to end where that came out whole, with no more
    vias and at most a third longer (`BUS_DI`, `ROW_DATA`, `SYNC_OUT`,
@@ -63,12 +65,12 @@ hold, on this routing; nothing was routed again from scratch. In order:
    that KiCad's own connectivity calls dangling.
 
 Two new board rules hold the result in KiCad's DRC: "via hole clear of SMD
-pads" (the exposed pads and U5 pin 15 excepted) and "0.15 mm outside the
-escape areas" (the four nets above excepted).
+pads" (the exposed pads excepted) and "0.15 mm outside the escape areas" (the
+four nets above excepted).
 
 | | 8 October | after the review |
 |---|---|---|
-| via holes in SMD pad openings (`tools/via_in_pad.py`; the exposed pads' 9 aside) | 98; 32 two-pad passives with a hole at one pad | **1** (U5 pin 15); none |
+| via holes in SMD pad openings (`tools/via_in_pad.py`; the exposed pads' 9 aside) | 98; 32 two-pad passives with a hole at one pad | **0** (U5 pin 15's until 26 October); none |
 | vias | 300 (104 GND, 32 +3.3 V, 164 signal) | 300 (100 GND, 31 +3.3 V, 169 signal) |
 | signal copper at 0.10 mm / of it outside the escape areas | 231 / 144 mm | 94 / 61 mm |
 | bare 90° corners (pairs / other signals / power) | 6 / 14 / 4 | **0** / 7 / 1 |
@@ -328,10 +330,10 @@ through another.
 
 From the design review (REVIEW.md):
 
-- **U5 pin 15's ground via is still in its pad**, at the toe: no place clear
-  of the pads was found with `MUX_S0`, `MUX_S2`, `COL_15` and the column lines
-  on B.Cu round it. It is the one via hole in an SMD pad besides the exposed
-  pads'.
+- *Closed 26 October:* U5 pin 15's ground via sat at the toe of its pad, with
+  no place clear of the pads round `MUX_S0`, `MUX_S2`, `COL_15` and the
+  column lines on B.Cu. That pad's toe is cut back 0.30 mm instead, so no via
+  hole is in an SMD pad but the exposed pads' 9.
 - **Four slow nets keep 0.10 mm runs** outside the escape areas, 45 mm in all
   (`MUX_S0` 24.6, `MUX_S3` 8.3, `SYNC_DE` 5.9, `MUX_S2` 5.8).
 - **Eight bare right angles remain**, none on the pairs.

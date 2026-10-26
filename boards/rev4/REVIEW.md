@@ -11,7 +11,7 @@ and fault injection, the plane checks, and the layout measurements of
 
 | # | comment | does it hold here? | what changed |
 |---|---|---|---|
-| 1 | "Move your vias out of any component pads, it can cause issues when reflowing" | **Yes.** 98 ground and +3.3 V vias had their holes in SMD pad openings, 32 of them on one pad of a two-pad passive, which is how 0201s and 0402s tombstone. The board relied on epoxy-filled, capped vias, a paid option on a 4-layer JLCPCB board, to stay safe | 97 moved out or taken off. One stays, at U5 pin 15, besides the exposed pads' 9. Tented vias are now enough; filling is optional |
+| 1 | "Move your vias out of any component pads, it can cause issues when reflowing" | **Yes.** 98 ground and +3.3 V vias had their holes in SMD pad openings, 32 of them on one pad of a two-pad passive, which is how 0201s and 0402s tombstone. The board relied on epoxy-filled, capped vias, a paid option on a 4-layer JLCPCB board, to stay safe | 97 moved out or taken off. The last, at U5 pin 15, was boxed in: its pad's toe is cut back 0.30 mm instead (26 Oct). Only the exposed pads' 9 remain. Tented vias are now enough; filling is optional |
 | 2 | "Some of your signal lines change size randomly … can cause reflections" | **The width changes were real; the reflections are not a problem at these lengths.** 231 mm of signal track was 0.10 mm, 119 mm of it on tracks outside the fine-pitch areas, where the board's own rule says 0.15 mm, and 17 nets changed width along their length. A 0.10 / 0.15 mm step is a 6 % impedance step on lines that are electrically short | 0.10 mm signal track down to 94 mm; outside the fine-pitch areas 45 mm, on four slow nets the board rule now names. 10 nets change width |
 | 3 | "The small traces should be fine for 3v3" | **Agreed.** +3.3 V is the In2 plane; its tracks are pad-to-via ties, the longest segment 3.4 mm. 0.15 mm of outer copper carries 0.6 A; the rail draws under 0.1 A | nothing |
 | 4 | "Right angles on your bus lines" | **There were right angles**: 24 bare 90° corners, 6 of them on the RS-485 pairs where they swap and cross at J4. **They cost nothing measurable here**: under 1 ps each, and a reflection of about 0.01 % of the fastest edge on these lines | 20 cut to two 45° bends, all 6 on the pairs among them. 8 are left, 3 of them on the regulator and ADC corners' drawn nets |
@@ -30,7 +30,7 @@ mask opening; the pads here have no mask expansion, so that is the copper):
 
 | | 8 October | now |
 |---|---|---|
-| via holes in an SMD pad opening, exposed pads aside | **98** (all ground or +3.3 V plane ties) | **1** (U5 pin 15) |
+| via holes in an SMD pad opening, exposed pads aside | **98** (all ground or +3.3 V plane ties) | **0** (U5 pin 15's until 26 October) |
 | …or within 0.10 mm of one (JLCPCB's minimum solder-mask bridge) | 0 | 0 |
 | two-pad passives with a hole at one pad only | **32** (C1–C4, C6, C7, C12, C14, C15, C20, C21, C24, C25, C29, C35–C40, C42, D3, R1, R2, R5, R7, R9, R20, R26, R27, R32, R33) | **0** |
 | holes in the exposed pads (U9's 7, U12's 2) | 9 | 9 |
@@ -68,14 +68,26 @@ routed again). The vias are tented, so solder mask now covers them. Every plane 
 against KiCad's own fill of its plane. One that had moved into the
 thermal-relief gap round J5's shield pin reached no plane, and was moved
 again. A new board rule (`rev4.kicad_dru`, "via hole clear of SMD pads")
-makes KiCad's DRC hold all this from now on: on the old board, before its one
-exception was added, it flagged exactly the 98.
+makes KiCad's DRC hold all this from now on: on the old board, without its
+exceptions, it flagged exactly the 98.
 
-**What stays.** U5 pin 15, the second mux's enable, is tied to ground, and its
-via sits at the toe of the pad, boxed in by `MUX_S0`'s via, `MUX_S2` and
-`COL_15` on F.Cu and column lines on B.Cu. Every place clear of the pads meant
-taking up two to seven of those nets, and no attempt routed them all again
-whole and no longer. The board rule names it.
+**The last one, U5 pin 15 (26 October).** U5 pin 15, the enable of bank A's
+mux, is tied to ground. Its via sat centred on the toe of the pad, boxed
+in by `MUX_S0`'s via, `MUX_S2` and `COL_15` on F.Cu and column lines on
+B.Cu. Every place clear of the pads meant taking up two to seven of those
+nets, and no attempt routed them all again whole and no longer. Half the hole
+was in the pad's mask and paste opening, so paste was printed over it. The
+hole holds about 0.11 mm³, more than the roughly 0.05 mm³ of solder a
+0.4 × 1.9 mm pad gets, so it could starve the joint. With that pin open the
+mux's enable floats and bank A's 16 columns read nothing or noise.
+Moving the via was not possible, so the pad moved instead.
+`tools/review_rev4.py`'s last stage, `toe`, cuts that pad back 0.30 mm at
+its outer end (1.60 mm long, the other pins 1.90). The hole is now 0.15 mm
+clear of the opening and tented, and the via's tie still runs 0.6 mm into the
+pad. The heel, where a gull-wing joint carries its strength, is untouched.
+The lead still lands on the pad at the package's widest lead span (TI's DB
+SSOP: 7.4–8.2 mm, so the lead tip is at most 4.10 mm from the centre, against
+the pad's new end at 4.15 mm). The board rule has no exception for it any more.
 
 The 9 ground vias in the exposed pads of U9 (RP2354A) and U12 (TPS62162) are
 where both makers' reference layouts put them. The exposed pad is the
@@ -83,7 +95,8 @@ RP2354A's main ground, and the TPS62162's carries its heat. Their paste
 windows sit over the holes. With plain vias some of that paste drains into
 them and leaves voids under the pad; filled, capped vias stop that. So the
 order notes now read: **tented vias are enough; filled and capped vias are
-optional, and only help U9's and U12's exposed pads and U5 pin 15**.
+optional, and only help U9's and U12's exposed pads** (JLCPCB charges for them
+on 4 layers; they are free only from 6).
 
 The price is a short tie between each pad and its via, where there was none.
 The decoupling capacitors whose ground via sat in the pad now reach it

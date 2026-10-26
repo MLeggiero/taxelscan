@@ -249,7 +249,7 @@ Distinct part numbers: 47 → 46.
 | DRC, zones refilled | 0 unconnected, 0 copper errors under the design review's rules (copper 0.40 mm from the edge, via holes 0.10 mm clear of SMD pads, 0.15 mm track outside the escape areas); rev-3's same 5 silkscreen warnings |
 | Schematic parity | every net's pads match; the only items are rev-3's net-name prefix and J5's two open SBU pins |
 | ERC | 0 errors |
-| Routing | 0.8 of 2306 mm (0.03 %) off 0 / 45 / 90 degrees, all of it plane ties (first rev-4: 67 %); nothing on In2; 169 signal vias; no via hole in an SMD pad but the exposed pads' 9 and U5 pin 15's; 8 bare right angles, none on the pairs; the USB-C data pair 2 / 2 vias, side by side |
+| Routing | 0.8 of 2306 mm (0.03 %) off 0 / 45 / 90 degrees, all of it plane ties (first rev-4: 67 %); nothing on In2; 169 signal vias; no via hole in an SMD pad but the exposed pads' 9 (U5 pin 15's pad toe cut back 0.30 mm, 26 October); 8 bare right angles, none on the pairs; the USB-C data pair 2 / 2 vias, side by side |
 | +3.3 V plane (In2) | 1 piece, 1840 mm², all 31 vias (the 8 October board, filled the same way with KiCad 10.0.7: 1841 mm²; first rev-4: 2 pieces, 1740 mm², 33 of 34; rev-3: 7 pieces, 1665 mm², 27 of 35) |
 | GND plane (In1) | one piece, 1875 mm², all 100 vias (8 October, filled the same way: 1879 mm², 104 vias) |
 | Fab package | 69 BOM lines, every one with an LCSC number; 102 / 104 parts in the CPLs; both planes in the gerbers |

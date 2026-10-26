@@ -188,8 +188,15 @@ def main():
         d, dq, t, err = fit(pk, pj)
         o = rot((-t[0], -t[1]), -dq)               # JLCPCB's origin, in KiCad's footprint frame
         row = (key[0], key[1], pkg, len(common), dq, round(o[0], 3) + 0.0, round(o[1], 3) + 0.0, round(err, 3))
-        if key in seen and seen[key] != row:
-            bad.append("%s: %s fits differently on another part" % (ref, key))
+        # the same part on several footprints: a pad edited on one of them (U5 pin 15's toe)
+        # moves its fit by micrometres, so keep the best-fitting one, and only a different
+        # rotation or offsets 0.05 mm apart are a disagreement
+        if key in seen:
+            s = seen[key]
+            if s[4] != row[4] or math.hypot(s[5] - row[5], s[6] - row[6]) > 0.05:
+                bad.append("%s: %s fits differently on another part" % (ref, key))
+            if s[7] <= row[7]:
+                row = s
         seen[key] = row
         if err > 0.35 or abs(d - round(d / 90.0) * 90) > 2.0:
             bad.append("%s %s: pads do not correspond (fit %.1f deg, worst %.2f mm)" % (ref, key[0], d, err))
