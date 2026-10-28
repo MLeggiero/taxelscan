@@ -35,6 +35,13 @@ writes `fab/NEEDS-PARTS.txt` and says so - while leaving the bare-board package
 alone. Since 17 September every line has a number. The solder jumpers are copper
 and want no part placed at all; they are excluded rather than counted missing.
 
+**Protel file extensions.** JLCPCB's KiCad guides ask for them ("JLCPCB
+prefers Protel filename extensions"), and they say which layer a file is
+whatever the layer is called: the inner layers are `rev4-GND.g1` (layer 2,
+the ground plane) and `rev4-PWR.g2` (layer 3, the 3.3 V plane), G1 and G2
+being Protel's first and second inner layers. Each file also carries its
+layer in its X2 attributes, which the checks at the end read.
+
 **Two assembly sets.** R11/R12 (bus termination) belong only on the two boards
 at the ends of a harness: rev4-bom.csv / rev4-cpl.csv leave them out, and
 rev4-bom-end.csv / rev4-cpl-end.csv put them in. ORDER-NOTES.txt says which
@@ -91,7 +98,7 @@ def main():
 
     ok = True
     ok &= run(cli, ["pcb", "export", "gerbers", "--output", GERBERS,
-                    "--layers", LAYERS, "--check-zones", "--no-protel-ext",
+                    "--layers", LAYERS, "--check-zones",
                     "--subtract-soldermask", BOARD], "gerbers")
     ok &= run(cli, ["pcb", "export", "drill", "--output", GERBERS,
                     "--format", "excellon", "--excellon-separate-th",
@@ -269,6 +276,17 @@ def main():
             "  Via Covering: Tented (Epoxy Filled & Capped optional: see STACKUP-NOTES)",
             "  Min trace/space 0.10 mm (above the 3.5 mil surcharge band)",
             "",
+            "Files",
+            "  PCB: rev4-gerbers.zip (Gerbers with Protel extensions, Excellon drills).",
+            "  JLCPCB's viewer should show the four copper layers in this order:",
+            "    L1 top      rev4-F_Cu.gtl",
+            "    L2 ground   rev4-GND.g1   (In1, the GND plane)",
+            "    L3 3.3 V    rev4-PWR.g2   (In2, the +3.3V plane)",
+            "    L4 bottom   rev4-B_Cu.gbl",
+            "  G1 / G2 are Protel's first and second inner layers, and each file",
+            "  names its layer in its X2 attributes too. If the viewer has the",
+            "  inner layers the other way round, put them right before ordering.",
+            "",
             "Assembly",
             "  Standard PCBA (0201 parts; Economic stops at 0402), top side only",
             "  Middle boards: rev4-bom.csv + rev4-cpl.csv (no R11/R12)",
@@ -304,17 +322,26 @@ def main():
             "      pins 1/6 carry D+, 3/4 D-, 5 VBUS, 2 GND - a wrong turn shorts",
             "      D+ to VBUS.",
             "",
-            "JLCPCB assembly stock on 26 October 2026, every BOM line, parts per board",
+            "JLCPCB assembly stock on 28 October 2026, every BOM line, parts per board",
             "in brackets:",
-            "  L1 C42411119 AOTA-B201610S3R3-101-T: 1 (1) = 1 board, and LCSC has 0.",
-            "      <- BLOCKS more than one board. It is the RP2350 design guide's only",
-            "      recommended inductor (gen_rev4.py asserts it), so source this exact",
-            "      part: JLCPCB's global sourcing or pre-order into your parts",
-            "      inventory, or buy it elsewhere and consign it, or leave L1 off and",
-            "      fit it by hand (dot on pad 1, the VCORE end). No L1, no core rail:",
-            "      the RP2354A will not run.",
-            "  J1/J2 C597985 FH12-32S-0.5SH(55): 18 (2) = 9 boards.",
-            "  J6 C5184785 2.54 mm header: 46 (1) = 46 boards.",
+            "  U9 C41378174 RP2354A: 0 (1); JLCPCB offers 92 for pre-order (8 minimum).",
+            "      <- BLOCKS EVERY BOARD. Pre-order it into your JLCPCB parts inventory",
+            "      before ordering, or take it through Global Sourcing: Digi-Key had the",
+            "      A4 stepping (Raspberry Pi SC1511-A4) on 28 October, 2,740 on 7-inch",
+            "      reels and 9,197 on 13-inch. A pre-order does not say its stepping;",
+            "      A4 is the current one (bring-up item 7 reads it off the chip).",
+            "  L1 C42411119 AOTA-B201610S3R3-101-T: 0 (1), none for pre-order.",
+            "      <- BLOCKS EVERY BOARD. It is the RP2350 datasheet's polarity-marked",
+            "      inductor (gen_rev4.py asserts it): take it through Global Sourcing",
+            "      (Digi-Key had 5,266 on 28 October; 9-15 days), or buy it and consign",
+            "      it, or leave L1 off and fit it by hand, dot on pad 1, the VCORE end.",
+            "      No L1, no core rail: the RP2354A will not run. If it cannot be had,",
+            "      FTC201610S3R3MBCA (C5832345) fits L1's pads and meets the datasheet's",
+            "      numbers but has no polarity mark, so about half the boards would get",
+            "      it the wrong way round: scope VCORE under load on each and turn L1",
+            "      round on those that misbehave.",
+            "  J1/J2 C597985 FH12-32S-0.5SH(55): 15 (2) = 7 boards.",
+            "  J6 C5184785 2.54 mm header: 14 (1) = 14 boards.",
             "  Every other line has stock for at least 260 boards. Re-check on the",
             "  order day.",
             "",
@@ -338,27 +365,48 @@ def main():
           % ("gerber zip", len(os.listdir(GERBERS)),
              os.path.getsize(zpath) / 1024.0))
 
-    # ---- did the planes actually make it into the copper layers? ------------
+    # ---- every layer once, and did the planes make it into theirs? ----------
     #
-    # The inner-layer gerber is named after the layer's USER name, not its
-    # canonical one: `rev4-GND.gbr` and `rev4-PWR.gbr`, never `rev4-In1_Cu`.
-    # Looking for "In1.Cu" therefore matched nothing and printed nothing, and
-    # a check that cannot fail is not a check - this repo has now caught four
-    # of those. The stackup in the board file says what the names are.
+    # Each Gerber says which layer it is in its X2 attributes
+    # (%TF.FileFunction,Copper,L2,Inr*%), whatever its name. The inner files
+    # are named after the layers' USER names, `rev4-GND.g1` and `rev4-PWR.g2`,
+    # never `rev4-In1_Cu`: a check that once looked for "In1.Cu" matched
+    # nothing and printed nothing, and a check that cannot fail is not a check
+    # (this repo has caught four of those). So this one reads the attribute,
+    # and the stackup in the board file says what each inner layer is called.
     text = io.open(BOARD, encoding="utf-8").read()
     names = dict(re.findall(r'\((?:4|6) "(In[12]\.Cu)" \w+ "([^"]+)"\)', text))
+    inner = {"In1.Cu": names.get("In1.Cu", "In1_Cu"), "In2.Cu": names.get("In2.Cu", "In2_Cu")}
+    want = {
+        "Copper,L1,Top": "rev4-F_Cu.gtl",
+        "Copper,L2,Inr": "rev4-%s.g1" % inner["In1.Cu"].replace(".", "_"),
+        "Copper,L3,Inr": "rev4-%s.g2" % inner["In2.Cu"].replace(".", "_"),
+        "Copper,L4,Bot": "rev4-B_Cu.gbl",
+        "Soldermask,Top": "rev4-F_Mask.gts", "Soldermask,Bot": "rev4-B_Mask.gbs",
+        "Legend,Top": "rev4-F_Silkscreen.gto", "Legend,Bot": "rev4-B_Silkscreen.gbo",
+        "Paste,Top": "rev4-F_Paste.gtp", "Paste,Bot": "rev4-B_Paste.gbp",
+        "Profile,NP": "rev4-Edge_Cuts.gm1",
+    }
+    found = {}
+    for f in sorted(os.listdir(GERBERS)):
+        head = io.open(os.path.join(GERBERS, f), encoding="utf-8", errors="replace").read(4000)
+        m = re.search(r"%TF\.FileFunction,([^*]*)\*%", head)
+        if m:
+            found.setdefault(m.group(1), []).append(f)
     bad = False
-    for canon, what in (("In1.Cu", "GND plane"), ("In2.Cu", "+3.3V plane")):
-        user = names.get(canon, canon)
-        hits = [f for f in os.listdir(GERBERS)
-                if f.endswith(".gbr") and os.path.splitext(f)[0].endswith(
-                    "-" + user.replace(".", "_"))]
-        if not hits:
-            print("  %-22s %s (%s): NO GERBER FOUND" % ("plane check", what,
-                                                        user))
+    for func, name in want.items():
+        if found.get(func) != [name]:
+            print("  %-22s %s: want %s, found %s" % ("layer check", func, name, found.get(func) or "nothing"))
             bad = True
-            continue
-        for f in hits:
+    extra = sorted(set(found) - set(want))
+    if extra:
+        print("  %-22s unexpected layers: %s" % ("layer check", extra))
+        bad = True
+    if not bad:
+        print("  %-22s %d layers, one file each, inner L2 %s / L3 %s" % (
+            "layer check", len(want), want["Copper,L2,Inr"], want["Copper,L3,Inr"]))
+    for func, what in (("Copper,L2,Inr", "GND plane"), ("Copper,L3,Inr", "+3.3V plane")):
+        for f in found.get(func, []):
             size = os.path.getsize(os.path.join(GERBERS, f))
             small = size < 20000
             bad = bad or small

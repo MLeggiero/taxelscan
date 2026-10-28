@@ -6,6 +6,17 @@ PCB
   Via Covering: Tented (Epoxy Filled & Capped optional: see STACKUP-NOTES)
   Min trace/space 0.10 mm (above the 3.5 mil surcharge band)
 
+Files
+  PCB: rev4-gerbers.zip (Gerbers with Protel extensions, Excellon drills).
+  JLCPCB's viewer should show the four copper layers in this order:
+    L1 top      rev4-F_Cu.gtl
+    L2 ground   rev4-GND.g1   (In1, the GND plane)
+    L3 3.3 V    rev4-PWR.g2   (In2, the +3.3V plane)
+    L4 bottom   rev4-B_Cu.gbl
+  G1 / G2 are Protel's first and second inner layers, and each file
+  names its layer in its X2 attributes too. If the viewer has the
+  inner layers the other way round, put them right before ordering.
+
 Assembly
   Standard PCBA (0201 parts; Economic stops at 0402), top side only
   Middle boards: rev4-bom.csv + rev4-cpl.csv (no R11/R12)
@@ -41,17 +52,26 @@ Check in the placement preview before confirming
       pins 1/6 carry D+, 3/4 D-, 5 VBUS, 2 GND - a wrong turn shorts
       D+ to VBUS.
 
-JLCPCB assembly stock on 26 October 2026, every BOM line, parts per board
+JLCPCB assembly stock on 28 October 2026, every BOM line, parts per board
 in brackets:
-  L1 C42411119 AOTA-B201610S3R3-101-T: 1 (1) = 1 board, and LCSC has 0.
-      <- BLOCKS more than one board. It is the RP2350 design guide's only
-      recommended inductor (gen_rev4.py asserts it), so source this exact
-      part: JLCPCB's global sourcing or pre-order into your parts
-      inventory, or buy it elsewhere and consign it, or leave L1 off and
-      fit it by hand (dot on pad 1, the VCORE end). No L1, no core rail:
-      the RP2354A will not run.
-  J1/J2 C597985 FH12-32S-0.5SH(55): 18 (2) = 9 boards.
-  J6 C5184785 2.54 mm header: 46 (1) = 46 boards.
+  U9 C41378174 RP2354A: 0 (1); JLCPCB offers 92 for pre-order (8 minimum).
+      <- BLOCKS EVERY BOARD. Pre-order it into your JLCPCB parts inventory
+      before ordering, or take it through Global Sourcing: Digi-Key had the
+      A4 stepping (Raspberry Pi SC1511-A4) on 28 October, 2,740 on 7-inch
+      reels and 9,197 on 13-inch. A pre-order does not say its stepping;
+      A4 is the current one (bring-up item 7 reads it off the chip).
+  L1 C42411119 AOTA-B201610S3R3-101-T: 0 (1), none for pre-order.
+      <- BLOCKS EVERY BOARD. It is the RP2350 datasheet's polarity-marked
+      inductor (gen_rev4.py asserts it): take it through Global Sourcing
+      (Digi-Key had 5,266 on 28 October; 9-15 days), or buy it and consign
+      it, or leave L1 off and fit it by hand, dot on pad 1, the VCORE end.
+      No L1, no core rail: the RP2354A will not run. If it cannot be had,
+      FTC201610S3R3MBCA (C5832345) fits L1's pads and meets the datasheet's
+      numbers but has no polarity mark, so about half the boards would get
+      it the wrong way round: scope VCORE under load on each and turn L1
+      round on those that misbehave.
+  J1/J2 C597985 FH12-32S-0.5SH(55): 15 (2) = 7 boards.
+  J6 C5184785 2.54 mm header: 14 (1) = 14 boards.
   Every other line has stock for at least 260 boards. Re-check on the
   order day.
 

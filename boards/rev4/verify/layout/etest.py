@@ -16,10 +16,11 @@ Then:
             jumpers JP1-JP3 tie ADDR0..2 to GND by design and are allowed
     stray   copper that no pad reaches, with its area
 
-A pad on no net (a fiducial, an unused pin) is a net of its own, so copper
-joining it to anything else is a short too.
-
-and the drill hits per tool against the board's vias and holes.
+and the drill hits per tool against the board's vias and holes. A pad on no
+net (a fiducial, an unused pin) is a net of its own, so copper joining it to
+anything else is a short too. Each file is found by the layer its X2
+attributes name (%TF.FileFunction), not by its name, so Protel extensions or
+KiCad's own make no difference.
 
 Needs gerbv (apt install gerbv), numpy, scipy and Pillow; kicad-cli for the
 test list. Exit 0 only if there is no open, no short and no stray copper.
@@ -41,6 +42,27 @@ REV4 = os.path.normpath(os.path.join(HERE, "..", ".."))
 PX = 100                          # pixels a millimetre: 10 um
 COPPER = ("F_Cu", "GND", "PWR", "B_Cu")     # top to bottom; In1 and In2 carry their layer names
 TIES = {frozenset({"GND", "ADDR0", "ADDR1", "ADDR2"})}
+FUNC = {"F_Cu": "Copper,L1,Top", "GND": "Copper,L2,Inr", "PWR": "Copper,L3,Inr", "B_Cu": "Copper,L4,Bot",
+        "F_Mask": "Soldermask,Top", "B_Mask": "Soldermask,Bot", "F_Paste": "Paste,Top", "B_Paste": "Paste,Bot",
+        "Edge_Cuts": "Profile,NP", "PTH": "Plated", "NPTH": "NonPlated"}
+
+
+def layer_files(gerbers):
+    """each file of a Gerber set by the layer its X2 attributes name, whatever the file is called:
+    %TF.FileFunction in a Gerber, '; #@! TF.FileFunction,Plated / NonPlated' in an Excellon header"""
+    found = {}
+    for f in sorted(os.listdir(gerbers)):
+        p = os.path.join(gerbers, f)
+        head = open(p, encoding="utf-8", errors="replace").read(4000)
+        m = re.search(r"%TF\.FileFunction,([^*]*)\*%", head) or re.search(r"^; #@! TF\.FileFunction,(NonPlated|Plated),", head, re.M)
+        if m:
+            found.setdefault(m.group(1), []).append(p)
+    out = {}
+    for key, func in FUNC.items():
+        if len(found.get(func, [])) != 1:
+            sys.exit("%s: want one file for %s (%s), found %s" % (gerbers, key, func, found.get(func)))
+        out[key] = found[func][0]
+    return out
 
 
 def coords(path):
@@ -89,21 +111,21 @@ def main():
     gerbers = sys.argv[1] if len(sys.argv) > 1 else os.path.join(REV4, "fab", "gerbers")
     net_of = netlist(sys.argv[2] if len(sys.argv) > 2 else os.path.join(REV4, "rev4.net"))
     board = sys.argv[3] if len(sys.argv) > 3 else os.path.join(REV4, "rev4.kicad_pcb")
-    name = lambda f: os.path.join(gerbers, "rev4-%s" % f)
+    files = layer_files(gerbers)
     tmp = tempfile.mkdtemp()
 
-    edge = coords(name("Edge_Cuts.gbr"))
+    edge = coords(files["Edge_Cuts"])
     x0, x1 = min(p[0] for p in edge) - 1.0, max(p[0] for p in edge) + 1.0
     y0, y1 = min(p[1] for p in edge) - 1.0, max(p[1] for p in edge) + 1.0
     w, h = round(x1 - x0), round(y1 - y0)
     to_px = lambda x, y: (int(round((y0 + h - y) * PX)), int(round((x - x0) * PX)))     # row, column
 
-    pth = render(name("PTH.drl"), x0, y0, w, h, os.path.join(tmp, "pth.png"))
-    npth = render(name("NPTH.drl"), x0, y0, w, h, os.path.join(tmp, "npth.png"))
+    pth = render(files["PTH"], x0, y0, w, h, os.path.join(tmp, "pth.png"))
+    npth = render(files["NPTH"], x0, y0, w, h, os.path.join(tmp, "npth.png"))
     four = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
     labels, counts, area = {}, {}, {}
     for layer in COPPER:
-        cu = render(name("%s.gbr" % layer), x0, y0, w, h, os.path.join(tmp, layer + ".png")) & ~npth
+        cu = render(files[layer], x0, y0, w, h, os.path.join(tmp, layer + ".png")) & ~npth
         labels[layer], counts[layer] = ndimage.label(cu, structure=four)
         area[layer] = np.bincount(labels[layer].ravel())
 
@@ -162,7 +184,7 @@ def main():
 
     hits = collections.Counter()
     tool = None
-    for line in open(name("PTH.drl"), encoding="utf-8"):
+    for line in open(files["PTH"], encoding="utf-8"):
         if re.fullmatch(r"T\d+C[\d.]+\s*", line):
             continue
         m = re.fullmatch(r"(T\d+)\s*", line)
@@ -170,7 +192,7 @@ def main():
             tool = m.group(1)
         elif line.startswith("X"):
             hits[(tool, "slot" if "G85" in line else "hole")] += 1
-    sizes = dict(re.findall(r"^(T\d+)C([\d.]+)", open(name("PTH.drl"), encoding="utf-8").read(), re.M))
+    sizes = dict(re.findall(r"^(T\d+)C([\d.]+)", open(files["PTH"], encoding="utf-8").read(), re.M))
 
     print("%s: gerbv at %d um a pixel, %d x %d mm; %d plated holes and slots, %d unplated" % (
         gerbers, 1000 // PX, w, h, nholes, ndimage.label(npth)[1]))

@@ -151,12 +151,13 @@ def main():
                 spokes.append(cover)
 
     # mask and paste over each hole, from the Gerbers
-    edge = etest.coords(os.path.join(gerbers, "rev4-Edge_Cuts.gbr"))
+    files = etest.layer_files(gerbers)
+    edge = etest.coords(files["Edge_Cuts"])
     x0, y0 = min(p[0] for p in edge) - 1.0, min(p[1] for p in edge) - 1.0
     w = round(max(p[0] for p in edge) + 1.0 - x0)
     h = round(max(p[1] for p in edge) + 1.0 - y0)
     tmp = tempfile.mkdtemp()
-    img = {f: etest.render(os.path.join(gerbers, "rev4-%s.gbr" % f), x0, y0, w, h, os.path.join(tmp, f + ".png"))
+    img = {f: etest.render(files[f], x0, y0, w, h, os.path.join(tmp, f + ".png"))
            for f in ("F_Mask", "B_Mask", "F_Paste", "B_Paste")}
     exposed = collections.defaultdict(list)
     for v in vias:

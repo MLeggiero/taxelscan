@@ -5,7 +5,7 @@
       "Application": "Pcbnew",
       "Version": "10.0.7-10.0.7~ubuntu24.04.1"
     },
-    "CreationDate": "2026-10-26T19:04:53+00:00"
+    "CreationDate": "2026-10-28T14:13:50+00:00"
   },
   "GeneralSpecs": {
     "ProjectId": {
@@ -40,57 +40,57 @@
   ],
   "FilesAttributes": [
     {
-      "Path": "rev4-F_Cu.gbr",
+      "Path": "rev4-F_Cu.gtl",
       "FileFunction": "Copper,L1,Top",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "rev4-GND.gbr",
+      "Path": "rev4-GND.g1",
       "FileFunction": "Copper,L2,Inr",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "rev4-PWR.gbr",
+      "Path": "rev4-PWR.g2",
       "FileFunction": "Copper,L3,Inr",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "rev4-B_Cu.gbr",
+      "Path": "rev4-B_Cu.gbl",
       "FileFunction": "Copper,L4,Bot",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "rev4-F_Paste.gbr",
+      "Path": "rev4-F_Paste.gtp",
       "FileFunction": "SolderPaste,Top",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "rev4-B_Paste.gbr",
+      "Path": "rev4-B_Paste.gbp",
       "FileFunction": "SolderPaste,Bot",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "rev4-F_Silkscreen.gbr",
+      "Path": "rev4-F_Silkscreen.gto",
       "FileFunction": "Legend,Top",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "rev4-B_Silkscreen.gbr",
+      "Path": "rev4-B_Silkscreen.gbo",
       "FileFunction": "Legend,Bot",
       "FilePolarity": "Positive"
     },
     {
-      "Path": "rev4-F_Mask.gbr",
+      "Path": "rev4-F_Mask.gts",
       "FileFunction": "SolderMask,Top",
       "FilePolarity": "Negative"
     },
     {
-      "Path": "rev4-B_Mask.gbr",
+      "Path": "rev4-B_Mask.gbs",
       "FileFunction": "SolderMask,Bot",
       "FilePolarity": "Negative"
     },
     {
-      "Path": "rev4-Edge_Cuts.gbr",
+      "Path": "rev4-Edge_Cuts.gm1",
       "FileFunction": "Profile",
       "FilePolarity": "Positive"
     }
